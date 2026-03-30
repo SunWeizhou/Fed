@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Data
+data/
+Plankton_OOD_Dataset/
+DYB-PlanktonNet/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.claude/
+.vscode/
+.idea/
+
+# Experiments output
+experiments/
+experiments/**/Plankton_OOD_Dataset/
+experiments/**/*.png
+experiments/**/*.jpg
+experiments/**/*.pth
+experiments/**/training_history.json
+experiments/**/config.json
+experiments/**/checkpoints/
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# Results
+results/
+outputs/
+
+# Development tools
+dev_tools/
+
+# Archive
+archive/
+
+# Temporary files
+1.py
+检查*.py
+*.py.bak
+
+# Experiment versions (output directories)
+experiments_large_v1/
+experiments_large_v2/
+experiments_large_v3/
+experiments_large_v4/
+# experiments_large_v5/  # Allow uploading non-pth files from v5
+# experiments_v6/ - Allow reports, exclude large files
+experiments_v6/**/*.pth
+experiments_v6/**/*.png
+experiments_v6/**/checkpoints/
+full_exp_logs_v1/
+full_exp_logs_v2/
+full_exp_logs_v3/
+full_exp_logs_v4/
+full_exp_logs_v5/
+
+# Training logs
+full_exp_logs/
+*_exp_*.log
+logs_fedvim_5gpu_*/
+watch_windows_resnet101.log
+
+# Temporary test files
+Far
+ID
+Near

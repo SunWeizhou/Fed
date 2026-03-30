@@ -1,0 +1,66 @@
+{
+  "thesis_title": "FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究",
+  "experiment_scope": "five_cnn_mainline",
+  "models": [
+    "resnet101",
+    "efficientnet_v2_s",
+    "mobilenetv3_large",
+    "densenet169",
+    "resnet50"
+  ],
+  "selected_models": [
+    "resnet101",
+    "efficientnet_v2_s",
+    "densenet169"
+  ],
+  "selection_rule": {
+    "rank_metric": "ACT Near-OOD AUROC",
+    "max_near_drop": 0.01,
+    "top_k": 3
+  },
+  "method_averages": {
+    "FedViM": {
+      "method": "FedViM",
+      "id_accuracy": 0.9648179652943177,
+      "near_auroc": 0.9285726213123305,
+      "far_auroc": 0.9470213124760647,
+      "fixed_k": 804.8,
+      "act_k": null,
+      "compression_rate": null
+    },
+    "ACT-FedViM": {
+      "method": "ACT-FedViM",
+      "id_accuracy": 0.9648179652943177,
+      "near_auroc": 0.9564055316501493,
+      "far_auroc": 0.9634460139925776,
+      "fixed_k": 660.8,
+      "act_k": 108.2,
+      "compression_rate": 0.86168125
+    },
+    "MSP": {
+      "method": "MSP",
+      "id_accuracy": 0.9648179652943177,
+      "near_auroc": 0.9042043090778997,
+      "far_auroc": 0.8726907235527857,
+      "fixed_k": null,
+      "act_k": null,
+      "compression_rate": null
+    },
+    "Energy": {
+      "method": "Energy",
+      "id_accuracy": 0.9648179652943177,
+      "near_auroc": 0.8334494214372989,
+      "far_auroc": 0.8088605093340089,
+      "fixed_k": null,
+      "act_k": null,
+      "compression_rate": null
+    }
+  },
+  "act_vs_fedvim": {
+    "avg_near_delta": 0.02783291033781885,
+    "avg_far_delta": 0.016424701516512874,
+    "avg_fixed_k": 804.8,
+    "avg_act_k": 108.2,
+    "avg_compression_rate": 0.86168125
+  }
+}

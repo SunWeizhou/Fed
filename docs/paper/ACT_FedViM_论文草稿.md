@@ -1,0 +1,577 @@
+# FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究
+
+## 摘要
+
+海洋浮游生物图像监测通常由多个单位分别建设和维护本地数据中心。由于原始图像及其采样元信息可能关联采样海域、设备布放位置、时间节点和任务背景，跨中心直接汇聚原始数据往往受到数据治理和隐私约束。在这类多中心协作场景下，仅完成联邦分类训练仍然不足，系统还需要进一步识别未见类别、鱼卵、鱼尾、气泡和颗粒等非目标样本，即分布外（Out-of-Distribution, OOD）检测。
+
+ViM 是一种典型的后处理式 OOD 检测方法，其优势在于只依赖全局特征均值、协方差和分类 logits，天然适合与联邦统计量聚合结合。但原始 ViM 依赖人为指定固定主子空间维度 `k`，当 backbone 在不同卷积模型之间切换时，统一固定 `k` 难以兼顾不同特征维度与谱结构。为此，本文提出 FedViM，并进一步给出其后处理扩展 ACT-FedViM。具体而言，本文首先在联邦训练后由各客户端上传一阶与二阶特征充分统计量，服务器据此重构全局均值与协方差，实现 ViM 所需统计量的联邦化估计；随后在同一 checkpoint 上引入 ACT（Adjusted Correlation Thresholding）作为后处理阶段的自适应选维机制，在不改变主方向求法的前提下，为 ViM 的主子空间维度提供统计驱动的选择。
+
+本文在 DYB-PlanktonNet OOD 数据集上对 `ResNet101`、`EfficientNetV2-S`、`MobileNetV3-Large`、`DenseNet169` 和 `ResNet50` 五个 CNN backbone 进行了评估。实验包含 `54` 个 ID 类别、`26` 个 Near-OOD 类别和 `12` 个 Far-OOD 类别，并采用 `5` 客户端、Dirichlet `alpha=0.1` 的联邦划分。当前五模型结果快照表明，ACT-FedViM 的平均 ID 准确率为 `96.48%`。相较于 fixed-k FedViM，ACT-FedViM 将主子空间维度从平均 `804.8` 压缩到 `108.2`，平均压缩率达到 `86.2%`；同时，平均 Near-OOD / Far-OOD AUROC 分别达到 `95.64%` / `96.34%`，整体保持了有竞争力的检测性能，并显著优于 `MSP` 与 `Energy` 基线。
+
+本文的主要结论是：FedViM 解决了 ViM 在多中心敏感图像场景下无法直接汇聚原始数据的问题；ACT-FedViM 则进一步为联邦 ViM 提供了一种更具统计依据的自适应选维机制。本文不将 ACT 的价值表述为对 AUROC 的稳定普遍提升，而是强调其在保持竞争性 OOD 检测性能的同时显著压缩后处理主子空间规模，从而降低部署与推理阶段的计算和存储负担，并减少跨 backbone 手工调参需求。
+
+**关键词**：联邦学习；分布外检测；ViM；ACT；海洋浮游生物；图像识别
+
+## Abstract
+
+Marine plankton monitoring is increasingly conducted by multiple institutions that maintain their own local data centers. Because raw images and their metadata may reveal sensitive information about sampling areas, equipment locations, timestamps, and mission backgrounds, directly pooling raw images across centers is often restricted by data governance and privacy requirements. In such a multi-center setting, federated classification alone is not sufficient. The system must also detect unseen plankton species, fish eggs, fish tails, bubbles, particles, and other non-target samples, namely out-of-distribution (OOD) samples.
+
+ViM is a representative post-hoc OOD detection method that relies on the global feature mean, covariance, and classification logits, which makes it naturally compatible with federated aggregation of sufficient statistics. However, the original ViM depends on a manually specified fixed subspace dimension `k`. When different CNN backbones are used, a single fixed `k` becomes difficult to justify across heterogeneous feature dimensions and spectral structures. To address this issue, this thesis proposes FedViM and further introduces ACT-FedViM as its adaptive rank-selection extension. Specifically, each client uploads first-order and second-order feature statistics after federated training, and the server reconstructs the global mean and covariance required by ViM. ACT (Adjusted Correlation Thresholding) is then used on the same checkpoint to adaptively select the principal subspace dimension without changing the covariance-based direction estimation in ViM.
+
+Experiments are conducted on the DYB-PlanktonNet OOD dataset with five CNN backbones: `ResNet101`, `EfficientNetV2-S`, `MobileNetV3-Large`, `DenseNet169`, and `ResNet50`. The evaluation covers `54` in-distribution classes, `26` Near-OOD classes, and `12` Far-OOD classes under a `5`-client federated split with Dirichlet `alpha=0.1`. The current five-model snapshot shows that ACT-FedViM achieves an average ID accuracy of `96.48%`. Compared with fixed-k FedViM, ACT-FedViM reduces the average subspace dimension from `804.8` to `108.2`, corresponding to an average compression rate of `86.2%`, while reaching `95.64%` and `96.34%` average AUROC on Near-OOD and Far-OOD tasks, respectively. Both FedViM and ACT-FedViM also outperform the `MSP` and `Energy` baselines by clear margins.
+
+The thesis concludes that FedViM makes ViM feasible in privacy-constrained multi-center plankton monitoring, while ACT-FedViM provides a statistically motivated adaptive rank-selection mechanism for federated ViM. The primary value of ACT-FedViM is not claimed as universal AUROC improvement, but as substantial subspace compression with competitive OOD performance, leading to a lighter and more deployment-friendly post-hoc pipeline.
+
+**Key words**: federated learning; out-of-distribution detection; ViM; ACT; marine plankton; image recognition
+
+---
+
+## 第1章 引言
+
+### 1.1 研究背景
+
+浮游生物是海洋生态系统中的基础组成部分，其丰度、群落结构和时空分布与营养盐循环、藻华暴发、食物网结构以及海洋生态安全密切相关。随着显微成像设备、流式成像平台和深度学习识别技术的发展，浮游生物监测已经从低通量人工镜检逐步转向高通量图像分析[7-10]。在这一过程中，自动分类模型已经能够承担越来越多的常规识别工作，但实际业务部署所面对的环境远比封闭分类基准更复杂。
+
+首先，海洋浮游生物监测通常不是由单一机构独立完成，而是由不同海域、不同科研平台或不同业务单位分别建设和维护本地数据中心。不同中心采集设备、海域环境、类别分布和标注进度都可能存在显著差异。这些数据往往还伴随采样位置、设备布放和任务背景等敏感信息，使得跨中心直接汇聚原始图像并不总是可行。联邦学习通过“数据不动、模型协同”的方式为这一问题提供了技术路径[1][11][12]。
+
+其次，海洋浮游生物监测属于开放环境任务。即使模型已经在训练集中学习了大量 ID 类别，测试时仍然会出现未见浮游生物类别、鱼卵、鱼尾、气泡、颗粒杂波等样本。若分类模型对这些样本给出高置信度误判，将直接影响监测结果可信度。因此，在多中心隐私约束下，仅提升联邦分类准确率并不足够，还必须考虑 OOD 检测能力。
+
+基于以上背景，本文研究的问题可以概括为：**如何在不共享原始图像的多中心海洋浮游生物监测场景下，实现联邦化的后处理 OOD 检测，并进一步减少不同 backbone 下的手工选维负担。**
+
+### 1.2 问题动机
+
+后处理式 OOD 检测方法建立在已经训练好的分类模型之上，能够在不重新训练生成模型或额外分类器的情况下提供分布外识别能力。`MSP`[4] 和 `Energy`[5] 是两类最常见的输出空间基线：前者使用最大 softmax 概率，后者使用 logits 的 log-sum-exp 能量分数。相比之下，ViM[2] 进一步利用特征空间的主子空间与残差空间分解，将能量项与残差项结合起来，往往能够获得更强的 OOD 检测能力。
+
+ViM 对本文尤其有吸引力，原因在于它需要的关键统计量是全局特征均值、协方差和分类 logits，而这些量天然适合通过客户端上传一阶与二阶充分统计量后在服务器端重构。然而，将 ViM 直接搬到联邦场景并不意味着问题已经解决。原始 ViM 依赖人为指定固定的主子空间维度 `k`。在单一 backbone 条件下，固定 `k` 往往还能工作；但在多 backbone、非独立同分布、特征维度差异很大的联邦场景下，固定 `k` 会带来三个问题。
+
+1. 不同 backbone 的特征维度跨度较大，固定 `k` 难以在 `960`、`1280`、`1664` 和 `2048` 维特征之间统一适配。
+2. 固定 `k` 缺乏明确的统计依据，很难解释为什么某个维度对当前数据分布是合适的。
+3. 当 `k` 取得过大时，部署阶段需要保存的投影矩阵规模和 OOD 打分开销都会增加，不利于轻量化落地。
+
+因此，本文并不试图重新定义 ViM 的 OOD 分数，而是聚焦一个更窄但更稳定的问题：**如何在联邦 ViM 中，为主子空间维度 `k` 提供统计驱动的自适应选择机制。**
+
+### 1.3 研究内容与贡献
+
+围绕上述问题，本文的研究内容分为两个层面。
+
+第一层面是提出 `FedViM`。本文通过客户端上传一阶与二阶特征充分统计量，在服务器端重构 ViM 所需的全局均值与协方差，从而实现 ViM 的联邦化。这一层贡献对应本文的主方法，也是论文题目中 `FedViM` 的核心含义。
+
+第二层面是提出 `ACT-FedViM`。在同一联邦训练 checkpoint 上，本文引入 ACT 作为后处理阶段的自适应选维机制，用统计驱动方式替代原始 ViM 中 fixed-k 的经验设定。ACT 并不改变 ViM 仍然由协方差主方向构造主子空间的基本范式，而是只负责回答“保留多少维主子空间更合适”这一问题。
+
+本文的主要贡献如下。
+
+1. 提出联邦化 ViM 实现方案。各客户端仅上传一阶与二阶特征充分统计量，服务器据此重构全局均值与协方差，从而在不共享原始图像和样本级特征的条件下完成 ViM 所需统计量的联邦化估计。
+2. 将 ACT 引入为联邦 ViM 的后处理自适应选维机制。ACT 仅负责自动选择主子空间维度 `k`，不改变 ViM 的主方向求法，因此方法结构清晰、实现代价低、解释性较强。
+3. 在五个 CNN backbone 上验证了 `FedViM` 与 `ACT-FedViM`。当前结果快照表明，ACT-FedViM 将主子空间维度平均压缩 `86.2%`，同时保持了竞争性的 OOD 检测表现，并整体显著优于 `MSP` 与 `Energy` 基线。
+
+需要说明的是，本文不将“ACT 一定提高 AUROC”作为核心结论。相反，本文更强调：ACT-FedViM 的主要价值在于**自适应选维、后处理轻量化以及减少跨 backbone 的手工调参需求**。
+
+### 1.4 论文结构
+
+本文后续内容安排如下：第 2 章综述海洋浮游生物图像识别、联邦学习、OOD 检测以及 ViM/ACT 相关研究；第 3 章给出 FedViM 与 ACT-FedViM 的方法设计；第 4 章介绍数据集、联邦设置、模型配置与评估指标；第 5 章汇报五模型实验结果并进行代表模型分析；第 6 章讨论本文方法的定位、实际意义与局限性；第 7 章给出全文结论。
+
+---
+
+## 第2章 相关工作
+
+### 2.1 海洋浮游生物图像识别与监测
+
+浮游生物图像识别是海洋智能监测的重要组成部分。随着显微成像和流式成像技术的发展，研究者已经构建了多个自动分类与识别系统，用于支持高通量浮游生物监测[7-10]。这些研究表明，深度学习方法能够显著提高浮游生物识别效率，但在真实海洋环境中，样本分布会受到海域差异、成像条件、季节变化和设备差异的影响，开放环境中的未知样本问题十分突出。
+
+与标准图像分类不同，海洋浮游生物监测中的错误往往不仅来自相近物种混淆，还来自气泡、颗粒、鱼卵和残缺目标等“非目标图像”。这意味着模型除了要具备封闭集分类能力，还需要在部署阶段提供足够可靠的拒识能力。由此，OOD 检测成为该应用背景下不可回避的技术需求。
+
+### 2.2 联邦学习与多中心隐私协作
+
+联邦学习由 FedAvg[1] 奠定了最经典的参数平均框架，其核心思想是数据保留在本地、仅交换模型参数或统计量。此后，大量研究从系统效率、优化稳定性、异构性适配和隐私保护等角度扩展了联邦学习的理论与应用边界[11][12]。对于多中心海洋浮游生物监测而言，联邦学习的直接价值在于避免原始图像跨中心汇聚，使系统更符合数据治理要求。
+
+然而，已有联邦学习工作大多将目标集中在分类精度提升上，而对“联邦分类模型如何进行 OOD 后处理”讨论较少。即便有面向联邦 OOD 的工作[6]，其方法也往往依赖额外训练结构或不完全适用于本文所强调的“后处理式、低额外成本、可直接复用现有 backbone”这一约束。因此，如何在联邦场景下构建简洁可复用的 ViM 式 OOD 检测流程，仍有较强的现实意义。
+
+### 2.3 后处理式 OOD 检测方法
+
+后处理式 OOD 检测方法以已经训练完成的分类模型为基础，部署成本低，适合与现有业务模型对接。`MSP`[4] 通过最大 softmax 概率衡量模型置信度，是最基础的 OOD 基线之一；`Energy`[5] 利用 logits 的 log-sum-exp 构造能量分数，在多个视觉任务上表现优于单纯的 softmax 置信度。
+
+ViM[2] 在此基础上进一步引入主子空间与残差空间分解。该方法将特征向量投影到由主成分张成的子空间中，并利用残差范数刻画样本偏离 ID 分布的程度，再与能量项进行组合。ViM 的优点在于：一方面它仍然是后处理式方法，不需要重新训练复杂的生成模型；另一方面它利用了特征空间信息，通常能在细粒度视觉任务中优于单纯依赖输出空间的方法。
+
+### 2.4 ACT 与高维统计选维
+
+在高维统计中，当特征维度与样本量处于同一量级时，样本协方差谱容易受到噪声膨胀影响。ACT（Adjusted Correlation Thresholding）通过相关矩阵谱修正和阈值判别，为因子数量估计提供了统计驱动的方案[3]。ACT 的核心作用不是直接构造分类器或 OOD 分数，而是为“应保留多少个有效主方向”提供更有统计解释的选择依据。
+
+本文并不把 ACT 当作新的 OOD 检测框架，而是将其定位为 ViM 主子空间维度的自适应选取器。换言之，ACT 在本文中解决的是“选多少维”，而不是“方向如何定义”或“分数如何重构”。这种角色定位既符合 ACT 的统计学背景，也与本文实验观察到的结果更一致。
+
+### 2.5 本章小结
+
+综上所述，海洋浮游生物监测需要面向开放环境的可靠识别能力；联邦学习为多中心敏感图像协作提供了基本框架；ViM 为联邦后处理 OOD 检测提供了合适的技术切入点；ACT 则为主子空间维度选择提供了统计驱动基础。本文的工作正是将这四条线索在同一应用问题下加以整合。
+
+---
+
+## 第3章 方法
+
+### 3.1 问题设定
+
+设有 `N` 个客户端，每个客户端对应一个本地数据中心或数据持有单位。客户端 `i` 持有本地有标签 ID 训练集
+
+$$
+\mathcal{D}_i = \{(x_j^{(i)}, y_j^{(i)})\}_{j=1}^{n_i},
+$$
+
+其中 `x_j^{(i)}` 为浮游生物图像，`y_j^{(i)}` 为 ID 类别标签。各客户端之间不共享原始图像。全局目标是训练一个联邦分类 backbone，并在此基础上构建 OOD 检测器，使系统能够识别测试样本是否来自训练分布之外。
+
+本文的方法分为两个阶段。
+
+1. **联邦 ViM 统计量构建阶段**：通过联邦训练获得全局 backbone，并由客户端上传一阶与二阶特征统计量。
+2. **ACT 后处理阶段**：在同一 checkpoint 上利用 ACT 自动选择 ViM 主子空间维度 `k`，再执行 OOD 打分。
+
+### 3.2 FedViM：ViM 所需统计量的联邦重构
+
+设训练完成后的全局特征提取器为 `f_\theta(\cdot)`，特征维度为 `D`。客户端 `i` 在本地 ID 训练数据上提取特征 `z = f_\theta(x)`，并计算如下充分统计量：
+
+$$
+\begin{aligned}
+s_i^{(1)} &= \sum_{x \in \mathcal{D}_i} f_\theta(x), \\
+s_i^{(2)} &= \sum_{x \in \mathcal{D}_i} f_\theta(x)f_\theta(x)^\top, \\
+c_i &= |\mathcal{D}_i|.
+\end{aligned}
+$$
+
+服务器聚合所有客户端上传的统计量：
+
+$$
+\begin{aligned}
+S^{(1)} &= \sum_{i=1}^{N} s_i^{(1)}, \\
+S^{(2)} &= \sum_{i=1}^{N} s_i^{(2)}, \\
+C &= \sum_{i=1}^{N} c_i.
+\end{aligned}
+$$
+
+据此可重构全局特征均值与协方差：
+
+$$
+\mu_{\text{global}} = \frac{S^{(1)}}{C},
+\qquad
+\Sigma_{\text{global}} = \frac{S^{(2)}}{C} - \mu_{\text{global}}\mu_{\text{global}}^\top.
+$$
+
+这一步是本文“联邦化 ViM”的核心。它说明：ViM 所需的全局统计量可以通过聚合充分统计量得到，而不需要服务器访问原始图像或逐样本特征。
+
+### 3.3 FedViM 的 fixed-k 评估口径
+
+在本文中，`FedViM` 专指“联邦化 ViM + fixed-k 评估口径”。考虑到不同 backbone 的特征维度不同，实验中采用与当前代码主线一致的两档 fixed-k 设定：对于较低维 backbone 采用 `512` 维，对于较高维 backbone 采用 `1000` 维。该设定的目的不是证明 fixed-k 最优，而是提供一个清晰、稳定、可复现实验对照。
+
+因此，本文后续比较中：
+
+- `FedViM` 表示联邦化 ViM 的 fixed-k 版本；
+- `ACT-FedViM` 表示在同一联邦 checkpoint 上，用 ACT 替代 fixed-k 来选择 `k` 的版本。
+
+### 3.4 ACT-FedViM：自适应主子空间维度选择
+
+原始 ViM 依赖固定 `k` 来确定主子空间规模。本文将 ACT 引入为对 `k` 的自适应选择机制，但保留 ViM 的整体几何框架。换言之，ACT 只回答“保留多少维主子空间”，并不改变“主方向来自协方差主成分”的事实。
+
+首先将全局协方差矩阵转换为相关矩阵：
+
+$$
+R = D_\Sigma^{-1/2}\Sigma_{\text{global}}D_\Sigma^{-1/2},
+$$
+
+其中 `D_\Sigma` 为 `\Sigma_{\text{global}}` 对角元素构成的对角矩阵。对 `R` 进行特征分解，记降序特征值为
+
+$$
+\lambda_1 \ge \lambda_2 \ge \cdots \ge \lambda_p.
+$$
+
+根据 ACT，定义阈值
+
+$$
+s = 1 + \sqrt{\frac{p}{n-1}},
+$$
+
+并通过离散 Stieltjes 变换对样本特征值进行偏差修正，得到修正特征值 `\lambda_j^C`。最终采用如下规则确定自适应维度：
+
+$$
+k_{\text{ACT}} = \max\{j : \lambda_j^C > s\}.
+$$
+
+在得到 `k_{\text{ACT}}` 后，仍然对 `\Sigma_{\text{global}}` 做 PCA，并取前 `k_{\text{ACT}}` 个协方差主方向构造 ViM 主子空间矩阵
+
+$$
+P \in \mathbb{R}^{D \times k_{\text{ACT}}}.
+$$
+
+因此，ACT-FedViM 的本质可以概括为：
+
+> 先用联邦统计量重构 ViM 所需的全局协方差，再用 ACT 自动确定 ViM 的主子空间维度 `k`。
+
+### 3.5 ViM 打分与经验校准
+
+给定测试样本 `x`，设其特征为 `z = f_\theta(x)`，分类头输出 logits 为 `g_\theta(x)`。ViM 残差定义为
+
+$$
+\text{Residual}(x) = \left\| (I - PP^\top)(z - \mu_{\text{global}}) \right\|_2.
+$$
+
+能量项定义为
+
+$$
+\text{Energy}(x) = \log \sum_{c=1}^{C} \exp(g_\theta(x)_c).
+$$
+
+本文采用经验校准得到平衡系数 `alpha`：
+
+$$
+\alpha = \frac{|\mathbb{E}_{ID}[\text{Energy}(x)]|}{\mathbb{E}_{ID}[\text{Residual}(x)] + \epsilon}.
+$$
+
+最终 OOD 分数写为
+
+$$
+\text{Score}(x) = \text{Energy}(x) - \alpha \cdot \text{Residual}(x).
+$$
+
+得分越低，样本越可能偏离 ID 主子空间；在 AUROC 评估时，将该分数统一转换为 OOD score 即可。
+
+### 3.6 方法流程与复杂度分析
+
+从实现角度看，FedViM 与 ACT-FedViM 的完整流程可以概括为：
+
+1. 使用 FedAvg 对 backbone 进行联邦训练。
+2. 每个客户端在本地 ID 训练集上计算并上传一阶与二阶特征统计量。
+3. 服务器重构全局均值与协方差。
+4. 对于 `FedViM`，使用 fixed-k 构造主子空间。
+5. 对于 `ACT-FedViM`，先由 ACT 计算 `k_{\text{ACT}}`，再构造主子空间。
+6. 使用 `Energy - alpha * Residual` 计算 OOD 分数并评估 Near/Far-OOD AUROC。
+
+ACT-FedViM 的轻量化收益主要发生在**后处理与部署阶段**，而不是联邦训练上传阶段。原因在于：
+
+1. 客户端上传的一阶与二阶统计量由特征维度 `D` 决定，与最终选择的 `k` 无关。
+2. 但部署时需要保存和使用的主子空间矩阵规模为 `D \times k`。
+3. ViM 打分中的投影与残差计算复杂度近似为 `O(Dk)`。
+
+因此，`k` 的显著降低能够直接减少投影矩阵存储开销和 OOD 打分时的矩阵乘法开销。本文当前五模型结果中，fixed-k FedViM 的平均 `k` 为 `804.8`，而 ACT-FedViM 的平均 `k` 为 `108.2`，后处理阶段的主子空间规模被压缩了约 `86.2%`。
+
+### 3.7 方法边界
+
+本文的方法不上传原始图像，也不上传逐样本特征，只上传客户端内部聚合后的统计量。因此，它比集中式汇聚图像或收集全部训练特征的方案更符合多中心数据协作要求。
+
+但需要明确的是，本文并不声称该方案自动提供形式化差分隐私保证。ACT-FedViM 的隐私优势主要体现在：
+
+1. 原始图像和采样位置等敏感数据不出本地。
+2. 服务器仅接收聚合统计量而非样本级记录。
+3. 方法结构与后续引入安全聚合或差分隐私机制是兼容的。
+
+### 3.8 本章小结
+
+本章给出了 FedViM 与 ACT-FedViM 的完整方法定义。FedViM 解决的是 ViM 所需统计量如何在联邦场景下重构的问题；ACT-FedViM 解决的是在同一联邦 ViM 框架中如何自适应选择主子空间维度 `k` 的问题。两者前后衔接清晰，也构成了本文论文叙事的主线。
+
+---
+
+## 第4章 实验设计
+
+### 4.1 数据集与 OOD 划分
+
+本文使用 `Plankton_OOD_Dataset` 作为实验数据集。该数据集包含以下四个部分：
+
+- `D_ID_train`：`54` 个 ID 类别，共 `26,034` 张图像；
+- `D_ID_test`：`54` 个 ID 类别，共 `2,939` 张图像；
+- `D_Near_test`：`26` 个 Near-OOD 类别，共 `1,516` 张图像；
+- `D_Far_test`：`12` 个 Far-OOD 类别，共 `17,031` 张图像。
+
+Near-OOD 由与 ID 浮游生物在形态或生态属性上相近、但不属于训练目标的类别组成；Far-OOD 则包含鱼卵、鱼尾、气泡和多类颗粒杂波。这一划分同时覆盖了“相近未知类”和“明显非目标类”两种更贴近实际部署的 OOD 场景。
+
+### 4.2 联邦设置
+
+训练集通过 Dirichlet 分布划分到 `5` 个客户端，参数取 `alpha = 0.1`，以模拟高度异构的多中心场景。全局训练采用 FedAvg 聚合，客户端参与比例设为 `1.0`，即每一轮均使用全部客户端参与参数更新。正式训练统一采用 `50` 个通信轮次，每轮执行 `4` 个本地 epoch。
+
+从论文目标看，本文并不追求研究所有可能的联邦优化变体，而是将联邦训练视为一个为后处理 OOD 评估提供稳定 checkpoint 和特征统计量的基础过程。因此，实验重点放在“联邦 ViM 是否可行”以及“ACT 是否能在同一 checkpoint 上提供更合理的选维”这两个问题上。
+
+### 4.3 Backbone 范围与方法对照
+
+考虑到本文聚焦于 ACT 在卷积特征空间中的作用，正式实验 backbone 收敛到 `5` 个 CNN 模型：
+
+- `ResNet101`
+- `EfficientNetV2-S`
+- `MobileNetV3-Large`
+- `DenseNet169`
+- `ResNet50`
+
+Transformer、DeiT 和 ConvNeXt 等模型不再进入论文主结果。这一处理的原因有两点：
+
+1. 本文的主要方法学问题已经能够在 CNN 特征空间内得到充分验证。
+2. 将实验范围收敛到五个 CNN backbone，有利于保证论文叙事、代码主线和结果表述的一致性。
+
+本文比较的四类方法如下。
+
+1. `MSP`：最大 softmax 概率基线。
+2. `Energy`：基于 logits 能量的输出空间基线。
+3. `FedViM`：联邦化 ViM 的 fixed-k 版本。
+4. `ACT-FedViM`：在同一联邦 checkpoint 上用 ACT 自动选择 `k` 的版本。
+
+### 4.4 训练与实现细节
+
+根据当前代码主线，五个 CNN backbone 采用统一的基础训练框架，但在 batch size 与梯度累积上略有差异。主要配置如下：
+
+- 全局随机种子为 `42`；
+- 训练轮次为 `50`，本地 epoch 为 `4`；
+- 基础学习率为 `0.001`，在 SGD 情况下自动按 `×10` 放大为有效学习率；
+- 优化器采用带动量的 SGD，动量为 `0.9`，权重衰减为 `1e-4`；
+- 学习率调度采用 `5` 轮 warmup 加 cosine decay；
+- `ResNet101` 使用 batch size `16` 且梯度累积 `4` 步；
+- `MobileNetV3-Large` 使用 batch size `64`；
+- `DenseNet169`、`EfficientNetV2-S`、`ResNet50` 使用 batch size `32`。
+
+在后处理评估中，`FedViM` 使用 fixed-k 口径；`ACT-FedViM` 仅改变 `k` 的选取方式，其他统计量、特征提取器和经验 `alpha` 校准过程与 `FedViM` 保持一致。这样可以最大程度保证两者比较的可解释性。
+
+### 4.5 评估指标
+
+本文使用以下四类指标：
+
+1. ID 分类准确率（Accuracy），用于衡量联邦分类 backbone 在 ID 测试集上的基础识别能力。
+2. Near-OOD AUROC，用于衡量模型对“相近未知类别”的区分能力。
+3. Far-OOD AUROC，用于衡量模型对“明显非目标样本”的区分能力。
+4. 主子空间压缩率，用于衡量 ACT 相对 fixed-k 在后处理维度上的压缩效果。
+
+其中，压缩率定义为
+
+$$
+\text{Compression} = 1 - \frac{k_{\text{ACT}}}{k_{\text{fixed}}}.
+$$
+
+### 4.6 实验报告口径
+
+本文当前主报告采用单次种子结果。为保持结果口径统一，正文中的平均值均来自五模型汇总结果，代表模型分析则直接引用对应模型的结构化结果文件。由此，实验结果章节可以同时兼顾整体比较与个案分析两种叙述需求。
+
+### 4.7 本章小结
+
+本章从数据集、联邦设置、backbone 范围、实现细节和评估指标五个方面说明了实验设计。总体上，实验配置服务于一个明确目标：在五个 CNN backbone 上验证 FedViM 的联邦可行性，以及 ACT-FedViM 的自适应选维价值。
+
+---
+
+## 第5章 实验结果与分析
+
+### 5.1 五模型总体结果
+
+表 5-1 给出了五个 CNN backbone 的主要结果。由于 OOD 检测是基于同一分类 checkpoint 的后处理评估，ID 分类准确率对 `FedViM` 与 `ACT-FedViM` 是共享的。
+
+**表 5-1 五个 CNN backbone 上的主要结果**
+
+| 模型 | ID Acc (%) | FedViM k | ACT k | 压缩率 | FedViM Near (%) | ACT Near (%) | FedViM Far (%) | ACT Far (%) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DenseNet169 | 96.50 | 1000 | 99 | 90.1% | 80.04 | 95.57 | 84.78 | 96.17 |
+| EfficientNetV2-S | 97.01 | 512 | 69 | 86.5% | 96.40 | 95.77 | 97.52 | 96.51 |
+| MobileNetV3-Large | 96.16 | 512 | 89 | 82.6% | 96.31 | 95.26 | 97.34 | 96.42 |
+| ResNet101 | 96.22 | 1000 | 143 | 85.7% | 95.86 | 96.28 | 96.68 | 96.73 |
+| ResNet50 | 96.53 | 1000 | 141 | 85.9% | 95.68 | 95.32 | 97.19 | 95.89 |
+| **平均** | **96.48** | **804.8** | **108.2** | **86.2%** | **92.86** | **95.64** | **94.70** | **96.34** |
+
+从表 5-1 可以得到三个直接结论。
+
+第一，ACT-FedViM 的最稳定收益来自**主子空间压缩**。在五个模型上，ACT 均将 `k` 压缩到 `69` 到 `143` 的范围，平均压缩率达到 `86.2%`，这说明 ACT 在卷积 backbone 上确实提供了稳定的一致性轻量化效果。
+
+第二，ACT-FedViM 的平均 AUROC 在当前五模型快照上高于 fixed-k FedViM，但这种提升并不均匀，不应被直接表述为“ACT 稳定提升了所有模型的检测性能”。从逐模型结果看，ACT 的影响存在三种情况：有的模型呈现轻微增益，有的模型基本持平，有的模型则出现小幅波动。
+
+第三，固定 `k` 并不一定适合所有 backbone。尤其在 `DenseNet169` 上，fixed-k 与 ACT 之间出现了明显差异，这提示 fixed-k 在某些模型上可能存在较强失配，而 ACT 的统计驱动选维有机会起到纠偏作用。
+
+### 5.2 与 MSP、Energy 基线的整体比较
+
+为了说明联邦 ViM 系方法的整体有效性，表 5-2 给出了四类方法在五模型上的平均表现。
+
+**表 5-2 不同方法的平均 OOD 检测表现**
+
+| 方法 | 平均 Near-OOD AUROC (%) | 平均 Far-OOD AUROC (%) |
+| --- | --- | --- |
+| MSP | 90.42 | 87.27 |
+| Energy | 83.34 | 80.89 |
+| FedViM | 92.86 | 94.70 |
+| ACT-FedViM | 95.64 | 96.34 |
+
+![图 5-1 五模型方法比较](../../paper_tools/figures/figure_1_method_comparison.png)
+
+*图 5-1 五个 CNN backbone 上 `FedViM`、`ACT-FedViM`、`MSP` 与 `Energy` 的 Near/Far-OOD AUROC 对比。*
+
+从表 5-2 和图 5-1 可以看出，`MSP` 与 `Energy` 作为纯输出空间基线，在当前细粒度浮游生物任务上明显弱于 ViM 系方法。无论是 fixed-k `FedViM` 还是 `ACT-FedViM`，其平均 Near/Far-OOD AUROC 都高于 `MSP` 与 `Energy`。这说明本文工作的主要价值首先来自“将 ViM 成功联邦化”，其次才是“在联邦 ViM 上进一步引入 ACT 选维”。
+
+这一观察对本文主线非常关键。若没有 `FedViM`，系统仍只能依赖 `MSP` 或 `Energy` 这类输出层基线，其对 Near/Far-OOD 的区分能力明显不足；而有了 `FedViM`，再叠加 `ACT` 的自适应选维后，联邦 OOD 检测方法链条才形成完整闭环。
+
+### 5.3 代表模型案例分析
+
+为更全面展示 ACT-FedViM 在不同 backbone 上的表现形态，本文选择三类最有说明性的 backbone 作为案例：
+
+1. `MobileNetV3-Large`：用于展示“大幅压缩 k，但整体性能只出现有限波动”的轻量化案例；
+2. `ResNet101`：用于展示“压缩显著且性能基本持平甚至略优”的平衡型案例；
+3. `DenseNet169`：用于展示“fixed-k 可能严重失配，ACT 有机会显著纠偏”的特殊案例。
+
+#### 5.3.1 MobileNetV3-Large：轻量化收益最直观
+
+`MobileNetV3-Large` 的 fixed-k 为 `512`，ACT 选择 `89` 维，压缩率达到 `82.6%`。与此同时，Near-OOD AUROC 从 `96.31%` 变化到 `95.26%`，Far-OOD AUROC 从 `97.34%` 变化到 `96.42%`。这一结果说明，在较轻量的卷积 backbone 上，ACT 并不一定继续抬高 AUROC，但能够在高绝对性能前提下将主子空间规模缩小到原来的不到五分之一。
+
+这一案例最适合支撑本文“部署友好”的核心论点。对于需要长期部署在多中心监测流程中的 OOD 后处理模块而言，`k` 从 `512` 压缩到 `89` 的意义并不只是数字变化，更意味着投影矩阵存储量和投影计算开销的明显下降。因此，本文将 `MobileNetV3-Large` 视为 ACT-FedViM 在工程上最有代表性的案例。
+
+#### 5.3.2 ResNet101：压缩与性能兼顾的平衡案例
+
+`ResNet101` 的 fixed-k 为 `1000`，ACT 选择 `143` 维，压缩率为 `85.7%`。在这一更小主子空间下，Near-OOD AUROC 从 `95.86%` 提升到 `96.28%`，Far-OOD AUROC 从 `96.68%` 变化到 `96.73%`。这一结果表明，在高维 CNN backbone 上，ACT-FedViM 可以在大幅缩小子空间规模的同时保持与 fixed-k ViM 基本一致的检测能力，并在当前快照中取得轻微增益。
+
+与 `MobileNetV3-Large` 相比，`ResNet101` 更能说明 ACT-FedViM 的“综合平衡性”：一方面，`k` 的压缩十分显著；另一方面，性能没有出现明显退化。若论文需要给出一个最典型、最稳妥的主结果样例，`ResNet101` 是最合适的候选之一。
+
+#### 5.3.3 DenseNet169：fixed-k 失配下的纠偏现象
+
+`DenseNet169` 的结果与其他模型明显不同。其 fixed-k 为 `1000`，而 ACT 仅保留 `99` 维主子空间，压缩率达到 `90.1%`。在这一设定下，Near-OOD AUROC 从 `80.04%` 提升到 `95.57%`，Far-OOD AUROC 从 `84.78%` 提升到 `96.17%`。这表明在当前快照中，fixed-k 在该模型上很可能存在明显失配，而 ACT 通过统计驱动选维起到了较强纠偏作用。
+
+但需要特别说明的是，本文并不把 `DenseNet169` 这一现象外推为 ACT 的普遍规律。更合理的解释是：当固定 `k` 与具体 backbone 的谱结构严重不匹配时，ACT 的确可能带来非常明显的改善；但这属于“个别模型上的强收益”，而不是“所有模型上的稳定增益”。因此，`DenseNet169` 在本文中更像一个说明 fixed-k 失配风险的案例，而不是一个用于夸大 ACT 普适性能的样板。
+
+### 5.4 ACT 的压缩效应与实际部署意义
+
+![图 5-2 主子空间压缩效果](../../paper_tools/figures/figure_2_subspace_compression.png)
+
+*图 5-2 五个 CNN backbone 上 fixed-k FedViM 与 ACT-FedViM 的主子空间维度比较。*
+
+从图 5-2 可以更直观看到，ACT 在五个模型上都显著降低了主子空间维度。对本文而言，这一结果具有两层意义。
+
+第一，ACT 在不同 CNN backbone 上体现出较高的一致性。虽然 AUROC 的变化并不一致，但 `k` 的压缩方向是一致的，这说明 ACT 作为选维机制的作用是稳定的。
+
+第二，主子空间规模的降低直接对应部署阶段成本下降。ViM 需要保存主子空间矩阵 `P \in \mathbb{R}^{D \times k}`，并在打分时计算投影和残差。`k` 的显著下降意味着矩阵更小、打分更快、内存更省。因此，ACT-FedViM 的价值主要不在训练阶段通信，而在后处理阶段的轻量化落地。
+
+### 5.5 为什么 ACT 没有统一提升所有模型
+
+从表 5-1 可以看出，ACT-FedViM 并没有在所有 backbone 上都表现出一致的 AUROC 提升。结合方法结构，至少可以从三个角度理解这一现象。
+
+第一，ACT 只负责选择 `k`，而最终主方向仍然来自协方差 PCA。若某些 backbone 的 OOD 判别信息并不完全与协方差主方向一致，那么“更有统计依据地选择 `k`”并不必然转化为“更高的 AUROC”。
+
+第二，不同 backbone 的特征谱结构差异明显。`ResNet101` 与 `MobileNetV3-Large` 在谱能量分布上可能更平滑，因此 ACT 的主要作用体现为压缩而非涨点；`DenseNet169` 则可能存在 fixed-k 明显失配，因此 ACT 的效果更加显著。
+
+第三，本文当前主报告采用单次种子结果快照。对于近似持平的模型，小幅涨跌也可能受到训练噪声、联邦划分和经验 `alpha` 校准的影响。因此，本文对 ACT 的表述必须保持克制，不能把某次快照中的涨点直接外推为稳定结论。
+
+这也是本文叙事中最重要的边界：**ACT-FedViM 的主要贡献是统计驱动的自适应选维和后处理轻量化，而不是证明 ACT 必然全面提升 ViM 的 AUROC。**
+
+### 5.6 本章小结
+
+本章结果表明，`FedViM` 与 `ACT-FedViM` 在五个 CNN backbone 上都明显优于 `MSP` 与 `Energy`，说明联邦化 ViM 的主线是成立的。进一步地，ACT-FedViM 在所有 backbone 上都显著压缩了主子空间规模，并在当前五模型结果中保持了竞争性的 OOD 检测性能。从整体结果看，最应强调的不是“ACT 涨了多少点”，而是“ACT 让联邦 ViM 的后处理选维更自动、更轻量、更可迁移”。
+
+---
+
+## 第6章 讨论
+
+### 6.1 本文方法的合理定位
+
+本文不将 ACT-FedViM 表述为一种替代 ViM 的全新 OOD 检测框架，而是将其定位为：
+
+> 在联邦 ViM 基础上，引入 ACT 作为后处理自适应选维模块的轻量化增强方案。
+
+这一定位有三方面优势。
+
+1. 方法结构清晰。主贡献集中在联邦统计量重构与 ACT 选维，不需要引入额外复杂训练模块。
+2. 叙事与实验一致。即便 ACT 没有在所有模型上带来统一增益，论文结论依然成立。
+3. 更适合本文的研究边界与论证重点。本文的重点不在于提出一个庞杂的新框架，而在于把问题收束到一个清楚、可验证、可解释的研究主线。
+
+### 6.2 面向多中心海洋监测的实际意义
+
+结合本文场景，FedViM 与 ACT-FedViM 的实际意义主要体现在以下三个方面。
+
+第一，满足多中心数据协作的基本约束。原始图像和样本级特征不离开本地，服务器只聚合一阶与二阶统计量，这使得方法更符合海洋监测数据治理要求。
+
+第二，补足联邦分类系统的开放环境能力。实际海洋监测任务中，模型不仅要识别训练集中的已知类，还要尽量拒识未知类和非目标样本。FedViM 使这一需求在联邦场景下有了可行的后处理实现。
+
+第三，降低后处理部署成本。ACT 并不改变联邦训练上传的统计量规模，但它显著缩小了部署阶段要保存的主子空间矩阵以及 OOD 打分时的投影复杂度。对于长期运行的多中心监测系统，这一收益是实际且可感知的。
+
+### 6.3 当前工作的局限性
+
+本文仍然存在以下局限。
+
+1. 当前方法只改进了主子空间维度 `k` 的选择，没有改变主方向本身的构造方式。因此，当协方差主方向与 OOD 判别方向不完全一致时，ACT 的收益会受到限制。
+2. 本文采用单次种子结果进行主报告，尚未完成多种子统计，因此对小幅涨跌的解释需要保持谨慎。
+3. 虽然方法避免了原始图像跨中心传输，但尚未结合安全聚合或差分隐私机制给出形式化隐私保证。
+4. 实验范围目前收敛到五个 CNN backbone，尚未扩展到 Transformer、ConvNeXt 或多模态海洋监测场景。
+
+### 6.4 后续工作展望
+
+未来工作可以从以下几个方向继续推进。
+
+1. 在保持联邦统计量可聚合的前提下，探索比协方差 PCA 更贴近 OOD 判别结构的方向选择机制。
+2. 在联邦聚合过程中加入安全聚合或差分隐私扰动，进一步增强形式化隐私保护能力。
+3. 在多种子、多数据划分条件下验证 ACT-FedViM 的稳定性，给出更完整的统计报告。
+4. 将方法扩展到图像与环境传感数据联合建模的多模态海洋监测任务。
+
+### 6.5 本章小结
+
+本章从方法定位、应用意义和局限性三个层面对实验结果进行了再解释。对于本文而言，最重要的不是把 ACT 描述为“万能增益模块”，而是把论文的结论稳定地锚定在“联邦化 ViM 可行，ACT 选维有价值，后处理部署更轻量”这三点上。
+
+---
+
+## 第7章 结论
+
+本文围绕“多中心敏感图像不能直接共享、系统又需要具备 OOD 拒识能力”这一问题，提出了 `FedViM`，并进一步给出其后处理扩展 `ACT-FedViM`。前者通过联邦聚合一阶与二阶充分统计量，实现 ViM 所需全局均值与协方差的联邦化估计；后者在同一 checkpoint 上利用 ACT 自动选择 ViM 主子空间维度 `k`，从而构造出一套统计驱动的联邦 ViM 后处理流程。
+
+在 `54` 个 ID 类别、`26` 个 Near-OOD 类别和 `12` 个 Far-OOD 类别构成的 DYB-PlanktonNet OOD 数据集上，本文对 `5` 个 CNN backbone 进行了实验评估。当前五模型结果快照表明，ACT-FedViM 的平均 ID 准确率达到 `96.48%`；相较于 fixed-k FedViM，ACT 将主子空间维度平均从 `804.8` 压缩到 `108.2`，压缩率达到 `86.2%`；同时，平均 Near/Far-OOD AUROC 达到 `95.64% / 96.34%`，并整体显著优于 `MSP` 与 `Energy` 基线。
+
+因此，本文的结论不是“ACT 一定优于 ViM”，而是：
+
+1. ViM 可以通过充分统计量聚合被有效联邦化；
+2. ACT 可以作为联邦 ViM 的自适应选维模块稳定工作；
+3. ACT-FedViM 在显著压缩后处理主子空间规模的同时，保持了有竞争力的 OOD 检测能力，并具有更好的部署友好性和参数可迁移性。
+
+这一结论与本文的方法设计、实验结果和应用背景是一致的，也构成了本文最稳固、最容易答辩的论文主线。
+
+---
+
+## 参考文献
+
+1. McMahan B, Moore E, Ramage D, et al. Communication-efficient learning of deep networks from decentralized data[C]//*Proceedings of AISTATS*. 2017.
+2. Wang H Q, Li Z, Feng L, et al. ViM: Out-of-distribution with virtual-logit matching[C]//*Proceedings of CVPR*. 2022.
+3. Fan J, Ke Y, Wang K, et al. Estimating number of factors by adjusted eigenvalues thresholding[J]. *Journal of the American Statistical Association*, 2022, 117(538): 852-861.
+4. Hendrycks D, Gimpel K. A baseline for detecting misclassified and out-of-distribution examples in neural networks[C]//*ICLR Workshop*. 2017.
+5. Liu W, Wang X, Owens J, et al. Energy-based out-of-distribution detection[J]. *NeurIPS*, 2020.
+6. Liao X, Liu W, Zhou P, et al. FOOGD: Federated collaboration for both out-of-distribution generalization and detection[C]//*NeurIPS*. 2024.
+7. Eerola T, et al. Survey of automatic plankton image recognition: challenges, existing solutions and future perspectives[J]. *Artificial Intelligence Review*, 2024.
+8. Pitois S G, et al. RAPID: real-time automated plankton identification dashboard using edge AI at sea[J]. *Frontiers in Marine Science*, 2025.
+9. Schmid M S, et al. Edge computing at sea: high-throughput classification of in-situ plankton imagery for adaptive sampling[J]. *Frontiers in Marine Science*, 2023.
+10. Naselli-Flores L, Padisak J. Ecosystem services provided by marine and freshwater phytoplankton[J]. *Hydrobiologia*, 2023.
+11. Kairouz P, McMahan H B, Avent B, et al. Advances and open problems in federated learning[J]. *Foundations and Trends in Machine Learning*, 2021, 14(1-2): 1-210.
+12. Yang Q, Liu Y, Chen T, et al. Federated machine learning: Concept and applications[J]. *ACM Transactions on Intelligent Systems and Technology*, 2019, 10(2): 1-19.
+
+---
+
+## 附录
+
+### A.1 全局协方差重构公式
+
+设客户端 `i` 的本地特征为 `\{z_j^{(i)}\}_{j=1}^{n_i}`，则有
+
+$$
+\begin{aligned}
+S^{(1)} &= \sum_{i=1}^{N}\sum_{j=1}^{n_i} z_j^{(i)}, \\
+S^{(2)} &= \sum_{i=1}^{N}\sum_{j=1}^{n_i} z_j^{(i)}(z_j^{(i)})^\top.
+\end{aligned}
+$$
+
+由此得到
+
+$$
+\mu_{\text{global}} = \frac{S^{(1)}}{\sum_i n_i},
+\qquad
+\Sigma_{\text{global}} = \frac{S^{(2)}}{\sum_i n_i} - \mu_{\text{global}}\mu_{\text{global}}^\top.
+$$
+
+因此，ViM 所需的全局统计量可以在联邦场景下通过充分统计量无损重构。
+
+### A.2 ACT 选维规则
+
+设相关矩阵特征值为 `\lambda_1 \ge \cdots \ge \lambda_p`，ACT 对特征值进行偏差修正得到 `\lambda_j^C`，并采用
+
+$$
+k_{\text{ACT}} = \max \{j : \lambda_j^C > 1 + \sqrt{p/(n-1)}\}
+$$
+
+作为主子空间维度。本文利用该规则为 ViM 的 `k` 提供自适应选择，而不改变 ViM 的主方向提取方式。
+
+### A.3 五模型完整备份结果
+
+| 模型 | ID Acc (%) | FedViM k | ACT k | 压缩率 | FedViM Near (%) | ACT Near (%) | MSP Near (%) | Energy Near (%) | FedViM Far (%) | ACT Far (%) | MSP Far (%) | Energy Far (%) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DenseNet169 | 96.50 | 1000 | 99 | 90.1% | 80.04 | 95.57 | 88.60 | 77.11 | 84.78 | 96.17 | 79.22 | 66.15 |
+| EfficientNetV2-S | 97.01 | 512 | 69 | 86.5% | 96.40 | 95.77 | 87.83 | 81.36 | 97.52 | 96.51 | 89.62 | 85.24 |
+| MobileNetV3-Large | 96.16 | 512 | 89 | 82.6% | 96.31 | 95.26 | 93.05 | 87.23 | 97.34 | 96.42 | 92.56 | 89.42 |
+| ResNet101 | 96.22 | 1000 | 143 | 85.7% | 95.86 | 96.28 | 91.59 | 87.06 | 96.68 | 96.73 | 90.12 | 86.65 |
+| ResNet50 | 96.53 | 1000 | 141 | 85.9% | 95.68 | 95.32 | 91.02 | 83.97 | 97.19 | 95.89 | 84.82 | 76.97 |
+
+---
+
+**论文版本**：v4.0  
+**日期**：2026-03-30  
+**说明**：本稿按照“FedViM + ACT 自适应选维”的五模型主线重写，并采用当前五模型结果快照作为正文数字基线。  
