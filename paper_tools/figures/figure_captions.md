@@ -10,4 +10,4 @@ Comparison between the fixed-k FedViM subspace dimension and the ACT-selected su
 
 ## Figure 3
 
-Representative models selected for the thesis body according to ACT Near-OOD AUROC ranking with a maximum Near-OOD regression threshold of 1.0 percentage points.
+Representative thesis models covering three complementary cases: lightweight deployment (`MobileNetV3-Large`), balanced compression-performance tradeoff (`ResNet101`), and fixed-k mismatch correction (`DenseNet169`).

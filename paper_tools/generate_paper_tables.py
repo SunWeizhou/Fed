@@ -7,6 +7,14 @@ import argparse
 import json
 from pathlib import Path
 
+DISPLAY_MODEL_NAMES = {
+    "resnet101": "ResNet101",
+    "efficientnet_v2_s": "EfficientNetV2-S",
+    "mobilenetv3_large": "MobileNetV3-Large",
+    "densenet169": "DenseNet169",
+    "resnet50": "ResNet50",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate FedViM paper markdown tables.")
@@ -54,6 +62,10 @@ def integer(value):
     return "-" if value is None else str(int(value))
 
 
+def display_model_name(name: str) -> str:
+    return DISPLAY_MODEL_NAMES.get(name, name)
+
+
 def markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     header_line = "| " + " | ".join(headers) + " |"
     sep_line = "| " + " | ".join(["---"] * len(headers)) + " |"
@@ -81,7 +93,7 @@ def build_full_table(rows: list[dict]) -> str:
     for row in rows:
         body.append(
             [
-                row["model_name"],
+                display_model_name(row["model_name"]),
                 pct(row["id_accuracy"]),
                 integer(row["fedvim_fixed_k"]),
                 integer(row["act_k"]),
@@ -118,7 +130,7 @@ def build_selected_table(rows: list[dict]) -> str:
         delta_text = "-" if delta is None else f"{delta * 100:+.2f}"
         body.append(
             [
-                row["model_name"],
+                display_model_name(row["model_name"]),
                 pct(row["id_accuracy"]),
                 integer(row["fedvim_fixed_k"]),
                 integer(row["act_k"]),
@@ -172,7 +184,7 @@ def main() -> None:
 
 ## 正文代表模型
 
-选择规则：按 `ACT-FedViM` 的 Near-OOD AUROC 排序，并过滤掉相对 `FedViM` 的明显 Near-OOD 退化模型。
+选择原则：覆盖三种最关键情形，分别是轻量化部署案例、压缩与性能平衡案例，以及 fixed-k 失配纠偏案例。
 
 {selected_table}
 
@@ -182,8 +194,8 @@ def main() -> None:
 
 ## 摘要口径
 
-- 实验范围：{", ".join(summary["models"])}
-- 正文代表模型：{", ".join(summary["selected_models"])}
+- 实验范围：{", ".join(display_model_name(model) for model in summary["models"])}
+- 正文代表模型：{", ".join(display_model_name(model) for model in summary["selected_models"])}
 - ACT 相对 FedViM 的平均 Near-OOD AUROC 变化：{summary["act_vs_fedvim"]["avg_near_delta"] * 100:+.2f}
 - ACT 相对 FedViM 的平均 Far-OOD AUROC 变化：{summary["act_vs_fedvim"]["avg_far_delta"] * 100:+.2f}
 - ACT 平均子空间压缩率：{summary["act_vs_fedvim"]["avg_compression_rate"] * 100:.1f}%

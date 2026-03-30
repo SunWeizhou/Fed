@@ -9,14 +9,20 @@
     "resnet50"
   ],
   "selected_models": [
+    "mobilenetv3_large",
     "resnet101",
-    "efficientnet_v2_s",
     "densenet169"
   ],
   "selection_rule": {
-    "rank_metric": "ACT Near-OOD AUROC",
+    "strategy": "manual_case_selection",
+    "selected_models": [
+      "mobilenetv3_large",
+      "resnet101",
+      "densenet169"
+    ],
+    "top_k": 3,
     "max_near_drop": 0.01,
-    "top_k": 3
+    "notes": "Cover lightweight deployment, balanced performance, and fixed-k mismatch correction."
   },
   "method_averages": {
     "FedViM": {

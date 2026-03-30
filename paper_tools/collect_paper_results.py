@@ -20,6 +20,7 @@ from evaluation_common import DEFAULT_FIVE_MODELS
 
 
 THESIS_TITLE = "FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究"
+DEFAULT_SELECTED_MODELS = ["mobilenetv3_large", "resnet101", "densenet169"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,15 +55,13 @@ def parse_args() -> argparse.Namespace:
         default=0.01,
         help="Maximum allowed Near-OOD AUROC drop for ACT relative to FedViM.",
     )
+    parser.add_argument(
+        "--selected-models",
+        nargs="+",
+        default=DEFAULT_SELECTED_MODELS,
+        help="Representative models to keep for the thesis body in the desired order.",
+    )
     return parser.parse_args()
-
-
-def latest_experiment_dir(model_root: Path) -> Path:
-    """Pick the latest experiment_* directory for a model."""
-    candidates = sorted(model_root.glob("experiment_*"))
-    if not candidates:
-        raise FileNotFoundError(f"No experiment_* directory found under {model_root}")
-    return candidates[-1]
 
 
 def load_json(path: Path):
@@ -231,15 +230,32 @@ def collect_records(experiments_root: Path, model_names: list[str]) -> list[dict
     """Collect all four method records for each model."""
     records = []
     for model_name in model_names:
-        experiment_dir = latest_experiment_dir(experiments_root / model_name)
-        model_records = []
-        for method_key in ("FedViM", "ACT-FedViM", "MSP", "Energy"):
-            record = method_record_for_experiment(experiment_dir, method_key)
-            record["model_name"] = model_name
-            record["experiment_dir"] = str(experiment_dir)
-            if record.get("model_type") is None:
-                record["model_type"] = model_name
-            model_records.append(record)
+        model_root = experiments_root / model_name
+        candidates = sorted(model_root.glob("experiment_*"), reverse=True)
+        if not candidates:
+            raise FileNotFoundError(f"No experiment_* directory found under {model_root}")
+
+        model_records = None
+        experiment_dir = None
+        last_error = None
+        for candidate in candidates:
+            try:
+                candidate_records = []
+                for method_key in ("FedViM", "ACT-FedViM", "MSP", "Energy"):
+                    record = method_record_for_experiment(candidate, method_key)
+                    record["model_name"] = model_name
+                    record["experiment_dir"] = str(candidate)
+                    if record.get("model_type") is None:
+                        record["model_type"] = model_name
+                    candidate_records.append(record)
+                experiment_dir = candidate
+                model_records = candidate_records
+                break
+            except FileNotFoundError as exc:
+                last_error = exc
+
+        if model_records is None or experiment_dir is None:
+            raise FileNotFoundError(f"No complete four-method result set found under {model_root}: {last_error}")
 
         reference = next(record for record in model_records if record["method"] == "FedViM")
         for record in model_records:
@@ -310,8 +326,17 @@ def average_metrics(records: list[dict], method_name: str) -> dict:
     }
 
 
-def select_paper_models(comparison_rows: list[dict], top_k: int, max_near_drop: float) -> list[dict]:
-    """Select the 2-3 paper models by ACT Near-OOD performance with a regression filter."""
+def select_paper_models(
+    comparison_rows: list[dict],
+    selected_models: list[str] | None,
+    top_k: int,
+    max_near_drop: float,
+) -> list[dict]:
+    """Select thesis-body models, preferring the explicit manual list."""
+    if selected_models:
+        row_map = {row["model_name"]: row for row in comparison_rows}
+        return [row_map[name] for name in selected_models if name in row_map]
+
     filtered = [
         row
         for row in comparison_rows
@@ -343,7 +368,12 @@ def main() -> None:
 
     records = collect_records(experiments_root, args.models)
     comparison_rows = build_comparison_rows(records)
-    selected_rows = select_paper_models(comparison_rows, top_k=args.top_k, max_near_drop=args.max_near_drop)
+    selected_rows = select_paper_models(
+        comparison_rows,
+        selected_models=args.selected_models,
+        top_k=args.top_k,
+        max_near_drop=args.max_near_drop,
+    )
 
     method_averages = {
         method: average_metrics(records, method)
@@ -357,9 +387,11 @@ def main() -> None:
         "models": args.models,
         "selected_models": [row["model_name"] for row in selected_rows],
         "selection_rule": {
-            "rank_metric": "ACT Near-OOD AUROC",
-            "max_near_drop": args.max_near_drop,
+            "strategy": "manual_case_selection" if args.selected_models else "act_near_ranking_with_filter",
+            "selected_models": args.selected_models,
             "top_k": args.top_k,
+            "max_near_drop": args.max_near_drop,
+            "notes": "Cover lightweight deployment, balanced performance, and fixed-k mismatch correction.",
         },
         "method_averages": method_averages,
         "act_vs_fedvim": {

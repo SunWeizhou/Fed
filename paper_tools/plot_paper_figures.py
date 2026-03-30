@@ -10,6 +10,14 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+DISPLAY_MODEL_NAMES = {
+    "resnet101": "ResNet101",
+    "efficientnet_v2_s": "EfficientNetV2-S",
+    "mobilenetv3_large": "MobileNetV3-Large",
+    "densenet169": "DenseNet169",
+    "resnet50": "ResNet50",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate thesis figures from collected FedViM results.")
@@ -52,8 +60,12 @@ def save_figure(fig: plt.Figure, output_dir: Path, stem: str) -> None:
     plt.close(fig)
 
 
+def display_model_name(name: str) -> str:
+    return DISPLAY_MODEL_NAMES.get(name, name)
+
+
 def plot_method_comparison(rows: list[dict], output_dir: Path) -> None:
-    models = [row["model_name"] for row in rows]
+    models = [display_model_name(row["model_name"]) for row in rows]
     x = np.arange(len(models))
     width = 0.2
 
@@ -101,7 +113,7 @@ def plot_method_comparison(rows: list[dict], output_dir: Path) -> None:
 
 
 def plot_subspace_compression(rows: list[dict], output_dir: Path) -> None:
-    models = [row["model_name"] for row in rows]
+    models = [display_model_name(row["model_name"]) for row in rows]
     x = np.arange(len(models))
     width = 0.35
     fixed_k = [row["fedvim_fixed_k"] for row in rows]
@@ -130,7 +142,7 @@ def plot_subspace_compression(rows: list[dict], output_dir: Path) -> None:
 
 
 def plot_selected_models(selected_rows: list[dict], output_dir: Path) -> None:
-    models = [row["model_name"] for row in selected_rows]
+    models = [display_model_name(row["model_name"]) for row in selected_rows]
     x = np.arange(len(models))
     width = 0.18
 
@@ -146,7 +158,7 @@ def plot_selected_models(selected_rows: list[dict], output_dir: Path) -> None:
     ax.set_ylim(75, 100)
     ax.grid(axis="y", linestyle="--", alpha=0.3)
     ax.legend(loc="lower right")
-    ax.set_title("Paper-Selected Representative Models")
+    ax.set_title("Representative Thesis Models")
     fig.tight_layout()
     save_figure(fig, output_dir, "figure_3_selected_models")
 
@@ -164,7 +176,7 @@ Comparison between the fixed-k FedViM subspace dimension and the ACT-selected su
 
 ## Figure 3
 
-Representative models selected for the thesis body according to ACT Near-OOD AUROC ranking with a maximum Near-OOD regression threshold of {summary['selection_rule']['max_near_drop'] * 100:.1f} percentage points.
+Representative thesis models covering three complementary cases: lightweight deployment (`MobileNetV3-Large`), balanced compression-performance tradeoff (`ResNet101`), and fixed-k mismatch correction (`DenseNet169`).
 """
     (output_dir / "figure_captions.md").write_text(content, encoding="utf-8")
 

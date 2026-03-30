@@ -1,5 +1,23 @@
 [
   {
+    "model_name": "mobilenetv3_large",
+    "feature_dim": 960,
+    "id_accuracy": 0.9615515481456277,
+    "fedvim_fixed_k": 512,
+    "act_k": 89,
+    "act_compression_rate": 0.826171875,
+    "fedvim_near_auroc": 0.9631035541498599,
+    "act_near_auroc": 0.9526329563032317,
+    "act_minus_fedvim_near": -0.010470597846628182,
+    "msp_near_auroc": 0.9305073881321254,
+    "energy_near_auroc": 0.8722648559406256,
+    "fedvim_far_auroc": 0.9734094157984114,
+    "act_far_auroc": 0.9642301893736637,
+    "act_minus_fedvim_far": -0.009179226424747777,
+    "msp_far_auroc": 0.9256294523192892,
+    "energy_far_auroc": 0.8941751615237022
+  },
+  {
     "model_name": "resnet101",
     "feature_dim": 2048,
     "id_accuracy": 0.9622320517182715,
@@ -16,24 +34,6 @@
     "act_minus_fedvim_far": 0.0005189983503651741,
     "msp_far_auroc": 0.9011816692212022,
     "energy_far_auroc": 0.8664857264765216
-  },
-  {
-    "model_name": "efficientnet_v2_s",
-    "feature_dim": 1280,
-    "id_accuracy": 0.9700578428036747,
-    "fedvim_fixed_k": 512,
-    "act_k": 69,
-    "act_compression_rate": 0.865234375,
-    "fedvim_near_auroc": 0.9639606923899411,
-    "act_near_auroc": 0.9577279799188603,
-    "act_minus_fedvim_near": -0.006232712471080815,
-    "msp_near_auroc": 0.8783294624829762,
-    "energy_near_auroc": 0.8136475081269903,
-    "fedvim_far_auroc": 0.9751596517280928,
-    "act_far_auroc": 0.9650959324837847,
-    "act_minus_fedvim_far": -0.010063719244308156,
-    "msp_far_auroc": 0.8962363909024931,
-    "energy_far_auroc": 0.8523850759185425
   },
   {
     "model_name": "densenet169",
