@@ -258,10 +258,23 @@ def collect_records(experiments_root: Path, model_names: list[str]) -> list[dict
             raise FileNotFoundError(f"No complete four-method result set found under {model_root}: {last_error}")
 
         reference = next(record for record in model_records if record["method"] == "FedViM")
+        act_record = next(record for record in model_records if record["method"] == "ACT-FedViM")
         for record in model_records:
             for shared_key in ("checkpoint", "model_type", "image_size", "num_classes", "feature_dim", "id_accuracy"):
                 if record.get(shared_key) is None:
                     record[shared_key] = reference.get(shared_key)
+
+        # Standardize ACT records against the current thesis FedViM fixed-k baseline.
+        # Legacy ACT artifacts may carry an older "original_k" that no longer matches
+        # the fixed-k FedViM result selected for the same experiment directory.
+        reference_fixed_k = reference.get("fixed_k")
+        act_k = act_record.get("act_k")
+        if reference_fixed_k is not None:
+            act_record["fixed_k"] = reference_fixed_k
+            if act_k is not None and reference_fixed_k not in (0, None):
+                act_record["compression_rate"] = 1.0 - (act_k / reference_fixed_k)
+            else:
+                act_record["compression_rate"] = None
 
         records.extend(model_records)
     return records
@@ -326,6 +339,35 @@ def average_metrics(records: list[dict], method_name: str) -> dict:
     }
 
 
+def validate_summary_consistency(summary: dict, comparison_rows: list[dict]) -> None:
+    """Fail fast when summary aggregates disagree with the canonical comparison rows."""
+    expected_fixed_k = mean(row["fedvim_fixed_k"] for row in comparison_rows)
+    expected_act_k = mean(row["act_k"] for row in comparison_rows)
+    expected_compression = mean(row["act_compression_rate"] for row in comparison_rows)
+
+    actual_fixed_k = summary["method_averages"]["ACT-FedViM"]["fixed_k"]
+    actual_act_k = summary["method_averages"]["ACT-FedViM"]["act_k"]
+    actual_compression = summary["method_averages"]["ACT-FedViM"]["compression_rate"]
+
+    tolerance = 1e-9
+    mismatches = []
+    if actual_fixed_k is None or abs(actual_fixed_k - expected_fixed_k) > tolerance:
+        mismatches.append(f"ACT-FedViM fixed_k={actual_fixed_k} != comparison avg_fixed_k={expected_fixed_k}")
+    if actual_act_k is None or abs(actual_act_k - expected_act_k) > tolerance:
+        mismatches.append(f"ACT-FedViM act_k={actual_act_k} != comparison avg_act_k={expected_act_k}")
+    if actual_compression is None or abs(actual_compression - expected_compression) > tolerance:
+        mismatches.append(
+            f"ACT-FedViM compression_rate={actual_compression} != comparison avg_compression_rate={expected_compression}"
+        )
+
+    fedvim_fixed_k = summary["method_averages"]["FedViM"]["fixed_k"]
+    if fedvim_fixed_k is None or abs(fedvim_fixed_k - expected_fixed_k) > tolerance:
+        mismatches.append(f"FedViM fixed_k={fedvim_fixed_k} != comparison avg_fixed_k={expected_fixed_k}")
+
+    if mismatches:
+        raise ValueError("Summary aggregation mismatch detected: " + "; ".join(mismatches))
+
+
 def select_paper_models(
     comparison_rows: list[dict],
     selected_models: list[str] | None,
@@ -379,7 +421,13 @@ def main() -> None:
         method: average_metrics(records, method)
         for method in ("FedViM", "ACT-FedViM", "MSP", "Energy")
     }
-    method_averages["ACT-FedViM"]["compression_rate"] = mean(row["act_compression_rate"] for row in comparison_rows)
+    canonical_fixed_k = mean(row["fedvim_fixed_k"] for row in comparison_rows)
+    canonical_act_k = mean(row["act_k"] for row in comparison_rows)
+    canonical_compression = mean(row["act_compression_rate"] for row in comparison_rows)
+    method_averages["FedViM"]["fixed_k"] = canonical_fixed_k
+    method_averages["ACT-FedViM"]["fixed_k"] = canonical_fixed_k
+    method_averages["ACT-FedViM"]["act_k"] = canonical_act_k
+    method_averages["ACT-FedViM"]["compression_rate"] = canonical_compression
 
     summary = {
         "thesis_title": THESIS_TITLE,
@@ -397,11 +445,13 @@ def main() -> None:
         "act_vs_fedvim": {
             "avg_near_delta": mean(row["act_minus_fedvim_near"] for row in comparison_rows),
             "avg_far_delta": mean(row["act_minus_fedvim_far"] for row in comparison_rows),
-            "avg_fixed_k": mean(row["fedvim_fixed_k"] for row in comparison_rows),
-            "avg_act_k": mean(row["act_k"] for row in comparison_rows),
-            "avg_compression_rate": mean(row["act_compression_rate"] for row in comparison_rows),
+            "avg_fixed_k": canonical_fixed_k,
+            "avg_act_k": canonical_act_k,
+            "avg_compression_rate": canonical_compression,
         },
     }
+
+    validate_summary_consistency(summary, comparison_rows)
 
     write_json(output_prefix.with_name(output_prefix.name + "_records.json"), records)
     write_json(output_prefix.with_name(output_prefix.name + "_full_comparison.json"), comparison_rows)

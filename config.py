@@ -25,8 +25,6 @@ class TrainingConfig:
     # Early stopping
     EARLY_STOP_PATIENCE = 10
     EARLY_STOP_MIN_DELTA = 0.001
-    OOD_TOLERANCE = 0.05  # 5% degradation tolerance
-
     # Data augmentation
     MIXUP_ALPHA = 1.0
     MIXUP_PROB = 0.5

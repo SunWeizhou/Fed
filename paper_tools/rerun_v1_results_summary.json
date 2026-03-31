@@ -39,7 +39,7 @@
       "id_accuracy": 0.9648179652943177,
       "near_auroc": 0.9564055316501493,
       "far_auroc": 0.9634460139925776,
-      "fixed_k": 660.8,
+      "fixed_k": 804.8,
       "act_k": 108.2,
       "compression_rate": 0.86168125
     },

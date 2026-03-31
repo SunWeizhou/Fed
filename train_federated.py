@@ -190,8 +190,6 @@ def federated_training(args):
     early_stopping = EarlyStoppingMonitor(
         patience=model_config.get('early_stop_patience', TrainingConfig.EARLY_STOP_PATIENCE),
         min_delta=TrainingConfig.EARLY_STOP_MIN_DELTA,
-        ood_tolerance=TrainingConfig.OOD_TOLERANCE,
-        restore_best_weights=True,
         save_dir=experiment_dir
     )
 
@@ -216,8 +214,6 @@ def federated_training(args):
             if 'early_stopping' in ckpt:
                 early_stopping.history = ckpt['early_stopping'].get('history', early_stopping.history)
                 early_stopping.best_val_acc = ckpt['early_stopping'].get('best_val_acc', 0.0)
-                early_stopping.best_near_auroc = ckpt['early_stopping'].get('best_near_auroc', None)
-                early_stopping.best_far_auroc = ckpt['early_stopping'].get('best_far_auroc', None)
                 early_stopping.best_round = ckpt['early_stopping'].get('best_round', 0)
                 early_stopping.wait = ckpt['early_stopping'].get('wait', 0)
                 print(f"[恢复训练] Early Stopping 状态已恢复 (best_val_acc={early_stopping.best_val_acc:.4f})")
@@ -359,8 +355,6 @@ def federated_training(args):
         should_stop, stop_reason = early_stopping.check(
             round_num=round_num + 1,
             val_acc=val_acc,
-            near_auroc=None,
-            far_auroc=None,
             checkpoint_path=checkpoint_path
         )
 
@@ -441,8 +435,6 @@ def federated_training(args):
                 'early_stopping': {
                     'history': early_stopping.history,
                     'best_val_acc': early_stopping.best_val_acc,
-                    'best_near_auroc': early_stopping.best_near_auroc,
-                    'best_far_auroc': early_stopping.best_far_auroc,
                     'best_round': early_stopping.best_round,
                     'wait': early_stopping.wait
                 },
@@ -463,14 +455,6 @@ def federated_training(args):
     print(f"\n[Early Stopping 摘要]")
     print(f"  最佳轮次: {early_stop_summary['best_round']}")
     print(f"  最佳验证集准确率: {early_stop_summary['best_val_acc']:.4f}")
-    if early_stop_summary['best_near_auroc'] is not None:
-        print(f"  最佳 Near-OOD AUROC: {early_stop_summary['best_near_auroc']:.4f}")
-    else:
-        print(f"  最佳 Near-OOD AUROC: 未监控（避免测试集泄露）")
-    if early_stop_summary['best_far_auroc'] is not None:
-        print(f"  最佳 Far-OOD AUROC: {early_stop_summary['best_far_auroc']:.4f}")
-    else:
-        print(f"  最佳 Far-OOD AUROC: 未监控（避免测试集泄露）")
     if early_stop_summary['stopped_epoch']:
         print(f"  停止轮次: {early_stop_summary['stopped_epoch']}")
         print(f"  停止原因: {early_stop_summary['reason']}")
@@ -521,118 +505,6 @@ def federated_training(args):
     print("=" * 60 + "\n")
 
     return training_history
-
-
-def generate_final_report(experiment_dir, training_history, args, best_acc):
-    """
-    生成最终的实验报告 (final_report.txt)
-
-    包含:
-    - 实验基本信息
-    - 最佳准确率和最后一轮指标
-    - 训练成功评估
-    """
-    report_path = os.path.join(experiment_dir, "final_report.txt")
-
-    # 提取最后一轮的指标
-    final_acc = training_history['test_accuracies'][-1] if training_history['test_accuracies'] else 0.0
-    final_near_auroc = training_history['near_auroc'][-1] if training_history['near_auroc'] else 0.0
-    final_far_auroc = training_history['far_auroc'][-1] if training_history['far_auroc'] else 0.0
-    final_loss = training_history['test_losses'][-1] if training_history['test_losses'] else 0.0
-
-    # 训练成功评估
-    final_acc_pct = final_acc * 100.0
-    best_acc_pct = best_acc * 100.0
-
-    if final_acc_pct >= 95.0:
-        status = "Excellent (优秀)"
-        status_symbol = "5/5"
-    elif final_acc_pct >= 90.0:
-        status = "Good (良好)"
-        status_symbol = "4/5"
-    elif final_acc_pct >= 80.0:
-        status = "Fair (一般)"
-        status_symbol = "3/5"
-    else:
-        status = "Poor (需改进)"
-        status_symbol = "2/5"
-
-    # OOD 检测评估
-    ood_status = ""
-    if final_near_auroc >= 0.90:
-        ood_status = "Excellent Near-OOD Detection"
-    elif final_near_auroc >= 0.80:
-        ood_status = "Good Near-OOD Detection"
-    else:
-        ood_status = "Fair Near-OOD Detection"
-
-    with open(report_path, 'w', encoding='utf-8') as f:
-        f.write("=" * 70 + "\n")
-        f.write("Fed-ViM 实验最终报告\n".center(70) + "\n")
-        f.write("=" * 70 + "\n\n")
-
-        # === 实验基本信息 ===
-        f.write("【实验基本信息】\n")
-        f.write("-" * 70 + "\n")
-        f.write(f"  模型类型 (Model Type):       {args.model_type}\n")
-        f.write(f"  批次大小 (Batch Size):        {args.batch_size}\n")
-        f.write(f"  图像尺寸 (Image Size):        {args.image_size}\n")
-        f.write(f"  客户端数量 (Num Clients):     {args.n_clients}\n")
-        f.write(f"  通信轮次 (Communication Rounds): {args.communication_rounds}\n")
-        f.write(f"  本地轮次 (Local Epochs):      {args.local_epochs}\n")
-        f.write(f"  学习率 (Learning Rate):       {args.base_lr}\n")
-        f.write(f"  Alpha (Non-IID):              {args.alpha}\n")
-        f.write(f"  使用 Fed-ViM:                 {args.use_fedvim}\n")
-        f.write(f"  设备 (Device):                {args.device}\n")
-        f.write(f"  随机种子 (Seed):              {args.seed}\n")
-        f.write(f"\n")
-
-        # === 最终性能指标 ===
-        f.write("【最终性能指标】\n")
-        f.write("-" * 70 + "\n")
-        f.write(f"  最佳准确率 (Best Accuracy):   {best_acc_pct:.2f}%\n")
-        f.write(f"  最终准确率 (Final Accuracy):  {final_acc_pct:.2f}%\n")
-        f.write(f"  最终损失 (Final Loss):        {final_loss:.4f}\n")
-        f.write(f"  Near-OOD AUROC:               {final_near_auroc:.4f}\n")
-        f.write(f"  Far-OOD AUROC:                {final_far_auroc:.4f}\n")
-        f.write(f"\n")
-
-        # === 训练评估 ===
-        f.write("【训练评估】\n")
-        f.write("-" * 70 + "\n")
-        f.write(f"  状态: {status} {status_symbol}\n")
-        f.write(f"  OOD 检测: {ood_status}\n")
-        f.write(f"\n")
-
-        # === 评估标准说明 ===
-        f.write("【评估标准】\n")
-        f.write("-" * 70 + "\n")
-        f.write(f"  - Excellent: Accuracy >= 95.0%\n")
-        f.write(f"  - Good:      Accuracy >= 90.0%\n")
-        f.write(f"  - Fair:      Accuracy >= 80.0%\n")
-        f.write(f"  - Poor:      Accuracy <  80.0%\n")
-        f.write(f"\n")
-        f.write(f"  OOD Detection:\n")
-        f.write(f"  - Excellent: Near-OOD AUROC >= 0.90\n")
-        f.write(f"  - Good:      Near-OOD AUROC >= 0.80\n")
-        f.write(f"  - Fair:      Near-OOD AUROC <  0.80\n")
-        f.write(f"\n")
-
-        # === 文件位置 ===
-        f.write("【生成文件】\n")
-        f.write("-" * 70 + "\n")
-        f.write(f"  - 检查点: {os.path.join(experiment_dir, 'best_model.pth')}\n")
-        f.write(f"  - 训练历史: {os.path.join(experiment_dir, 'training_history.json')}\n")
-        f.write(f"  - 训练曲线: {os.path.join(experiment_dir, 'training_curves.png')}\n")
-        f.write(f"  - 评估结果: {os.path.join(experiment_dir, 'evaluation/')}\n")
-        f.write(f"\n")
-
-        f.write("=" * 70 + "\n")
-        f.write(f"报告生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write("=" * 70 + "\n")
-
-    print(f"[Report] 最终报告已生成: {report_path}")
-    return report_path
 
 
 def plot_training_curves(history, output_dir):
