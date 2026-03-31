@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate paper-ready figures for the five-model FedViM workflow."""
+"""Generate thesis figures for the five-model FedViM workflow."""
 
 from __future__ import annotations
 
@@ -9,6 +9,9 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+
 
 DISPLAY_MODEL_NAMES = {
     "resnet101": "ResNet101",
@@ -17,6 +20,34 @@ DISPLAY_MODEL_NAMES = {
     "densenet169": "DenseNet169",
     "resnet50": "ResNet50",
 }
+
+DISPLAY_MODEL_NAMES_MULTILINE = {
+    "resnet101": "ResNet101",
+    "efficientnet_v2_s": "EfficientNetV2-S",
+    "mobilenetv3_large": "MobileNetV3-\nLarge",
+    "densenet169": "DenseNet169",
+    "resnet50": "ResNet50",
+}
+
+CASE_NOTES = {
+    "mobilenetv3_large": "Lightweight deployment",
+    "resnet101": "Balanced trade-off",
+    "densenet169": "Fixed-k correction",
+}
+
+COLORS = {
+    "FedViM": "#214C63",
+    "ACT-FedViM": "#D45D47",
+    "MSP": "#7EA66A",
+    "Energy": "#C9A33A",
+}
+
+EDGE_COLOR = "#23313C"
+GRID_COLOR = "#D7DEE5"
+AXIS_FACE = "#F7F7F3"
+TEXT_COLOR = "#1F2933"
+TEXT_SUBTLE = "#5B6770"
+CONNECTOR_COLOR = "#BFC9D4"
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,111 +86,282 @@ def load_json(path: str | Path):
 
 def save_figure(fig: plt.Figure, output_dir: Path, stem: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_dir / f"{stem}.png", dpi=300, bbox_inches="tight")
-    fig.savefig(output_dir / f"{stem}.pdf", bbox_inches="tight")
+    fig.savefig(output_dir / f"{stem}.png", dpi=350, bbox_inches="tight", facecolor="white")
+    fig.savefig(output_dir / f"{stem}.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
-def display_model_name(name: str) -> str:
+def configure_matplotlib() -> None:
+    plt.rcParams.update(
+        {
+            "figure.facecolor": "white",
+            "savefig.facecolor": "white",
+            "axes.facecolor": AXIS_FACE,
+            "axes.edgecolor": EDGE_COLOR,
+            "axes.labelcolor": TEXT_COLOR,
+            "axes.titlecolor": TEXT_COLOR,
+            "axes.linewidth": 0.9,
+            "axes.titleweight": "semibold",
+            "font.family": ["DejaVu Serif", "DejaVu Sans"],
+            "font.size": 11,
+            "xtick.color": TEXT_COLOR,
+            "ytick.color": TEXT_COLOR,
+            "grid.color": GRID_COLOR,
+            "grid.linestyle": (0, (3, 3)),
+            "grid.linewidth": 0.8,
+            "legend.frameon": False,
+        }
+    )
+
+
+def display_model_name(name: str, multiline: bool = False) -> str:
+    if multiline:
+        return DISPLAY_MODEL_NAMES_MULTILINE.get(name, name)
     return DISPLAY_MODEL_NAMES.get(name, name)
 
 
+def style_axis(ax: plt.Axes, grid_axis: str = "y") -> None:
+    ax.grid(axis=grid_axis, zorder=0)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color(EDGE_COLOR)
+    ax.spines["bottom"].set_color(EDGE_COLOR)
+    ax.tick_params(length=0)
+
+
+def add_bar_labels(ax: plt.Axes, bars, dy: float = 0.22) -> None:
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + dy,
+            f"{height:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color=TEXT_SUBTLE,
+        )
+
+
 def plot_method_comparison(rows: list[dict], output_dir: Path) -> None:
-    models = [display_model_name(row["model_name"]) for row in rows]
+    models = [display_model_name(row["model_name"], multiline=True) for row in rows]
     x = np.arange(len(models))
-    width = 0.2
+    width = 0.18
 
-    near_series = {
-        "FedViM": [row["fedvim_near_auroc"] * 100 for row in rows],
-        "ACT-FedViM": [row["act_near_auroc"] * 100 for row in rows],
-        "MSP": [row["msp_near_auroc"] * 100 for row in rows],
-        "Energy": [row["energy_near_auroc"] * 100 for row in rows],
-    }
-    far_series = {
-        "FedViM": [row["fedvim_far_auroc"] * 100 for row in rows],
-        "ACT-FedViM": [row["act_far_auroc"] * 100 for row in rows],
-        "MSP": [row["msp_far_auroc"] * 100 for row in rows],
-        "Energy": [row["energy_far_auroc"] * 100 for row in rows],
-    }
-    colors = {
-        "FedViM": "#2F5597",
-        "ACT-FedViM": "#C0504D",
-        "MSP": "#9BBB59",
-        "Energy": "#8064A2",
+    series = {
+        "Near-OOD AUROC": {
+            "FedViM": [row["fedvim_near_auroc"] * 100 for row in rows],
+            "ACT-FedViM": [row["act_near_auroc"] * 100 for row in rows],
+            "MSP": [row["msp_near_auroc"] * 100 for row in rows],
+            "Energy": [row["energy_near_auroc"] * 100 for row in rows],
+        },
+        "Far-OOD AUROC": {
+            "FedViM": [row["fedvim_far_auroc"] * 100 for row in rows],
+            "ACT-FedViM": [row["act_far_auroc"] * 100 for row in rows],
+            "MSP": [row["msp_far_auroc"] * 100 for row in rows],
+            "Energy": [row["energy_far_auroc"] * 100 for row in rows],
+        },
     }
 
-    fig, axes = plt.subplots(1, 2, figsize=(15, 5), sharey=True)
-    for idx, (label, values) in enumerate(near_series.items()):
-        axes[0].bar(x + (idx - 1.5) * width, values, width=width, label=label, color=colors[label])
-    axes[0].set_title("Near-OOD AUROC Comparison")
-    axes[0].set_xticks(x)
-    axes[0].set_xticklabels(models, rotation=20)
-    axes[0].set_ylabel("AUROC (%)")
-    axes[0].set_ylim(70, 100)
-    axes[0].grid(axis="y", linestyle="--", alpha=0.3)
+    fig, axes = plt.subplots(2, 1, figsize=(12.2, 8.0), sharex=True, constrained_layout=True)
+    for ax, (title, panel) in zip(axes, series.items()):
+        for idx, (label, values) in enumerate(panel.items()):
+            offset = (idx - 1.5) * width
+            ax.bar(
+                x + offset,
+                values,
+                width=width,
+                label=label,
+                color=COLORS[label],
+                edgecolor=EDGE_COLOR,
+                linewidth=0.55,
+                zorder=3,
+            )
 
-    for idx, (label, values) in enumerate(far_series.items()):
-        axes[1].bar(x + (idx - 1.5) * width, values, width=width, label=label, color=colors[label])
-    axes[1].set_title("Far-OOD AUROC Comparison")
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels(models, rotation=20)
-    axes[1].set_ylim(70, 100)
-    axes[1].grid(axis="y", linestyle="--", alpha=0.3)
-    axes[1].legend(loc="lower left")
+        style_axis(ax, grid_axis="y")
+        ax.set_ylim(75, 98)
+        ax.set_ylabel("AUROC (%)")
+        ax.set_title(title, loc="left", pad=10, fontsize=13)
 
-    fig.suptitle("FedViM Five-Model OOD Comparison", fontsize=14)
-    fig.tight_layout()
+    axes[-1].set_xticks(x)
+    axes[-1].set_xticklabels(models)
+
+    legend_handles = [
+        Patch(facecolor=COLORS["FedViM"], edgecolor=EDGE_COLOR, label="FedViM"),
+        Patch(facecolor=COLORS["ACT-FedViM"], edgecolor=EDGE_COLOR, label="ACT-FedViM"),
+        Patch(facecolor=COLORS["MSP"], edgecolor=EDGE_COLOR, label="MSP"),
+        Patch(facecolor=COLORS["Energy"], edgecolor=EDGE_COLOR, label="Energy"),
+    ]
+    fig.legend(
+        handles=legend_handles,
+        loc="upper center",
+        ncol=4,
+        bbox_to_anchor=(0.5, 1.02),
+        columnspacing=1.8,
+        handletextpad=0.6,
+    )
     save_figure(fig, output_dir, "figure_1_method_comparison")
 
 
 def plot_subspace_compression(rows: list[dict], output_dir: Path) -> None:
     models = [display_model_name(row["model_name"]) for row in rows]
-    x = np.arange(len(models))
-    width = 0.35
     fixed_k = [row["fedvim_fixed_k"] for row in rows]
     act_k = [row["act_k"] for row in rows]
     compression = [row["act_compression_rate"] * 100 for row in rows]
+    y = np.arange(len(rows))
+    max_fixed = max(fixed_k)
+    right_label_x = max_fixed + 38
 
-    fig, ax1 = plt.subplots(figsize=(12, 5))
-    ax1.bar(x - width / 2, fixed_k, width=width, label="FedViM fixed-k", color="#4F81BD")
-    ax1.bar(x + width / 2, act_k, width=width, label="ACT-FedViM k", color="#C0504D")
-    ax1.set_ylabel("Subspace Dimension k")
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(models, rotation=20)
-    ax1.grid(axis="y", linestyle="--", alpha=0.3)
+    fig, ax = plt.subplots(figsize=(11.4, 5.8))
+    fig.subplots_adjust(left=0.16, right=0.985, top=0.86, bottom=0.14)
+    ax.set_facecolor("#F6F7F4")
 
-    ax2 = ax1.twinx()
-    ax2.plot(x, compression, color="#9BBB59", marker="o", linewidth=2, label="Compression Rate")
-    ax2.set_ylabel("Compression Rate (%)")
-    ax2.set_ylim(0, 100)
+    for idx, (fixed_value, act_value, rate) in enumerate(zip(fixed_k, act_k, compression)):
+        ax.hlines(idx, act_value, fixed_value, color=CONNECTOR_COLOR, linewidth=5.5, zorder=1, capstyle="round")
+        ax.scatter(
+            fixed_value,
+            idx,
+            s=150,
+            facecolor="white",
+            edgecolor=COLORS["FedViM"],
+            linewidth=2.1,
+            zorder=3,
+        )
+        ax.scatter(
+            act_value,
+            idx,
+            s=150,
+            facecolor=COLORS["ACT-FedViM"],
+            edgecolor="white",
+            linewidth=1.2,
+            zorder=4,
+        )
+        ax.text(
+            right_label_x,
+            idx,
+            f"-{rate:.1f}%",
+            va="center",
+            ha="left",
+            fontsize=10,
+            color=TEXT_SUBTLE,
+        )
 
-    handles1, labels1 = ax1.get_legend_handles_labels()
-    handles2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(handles1 + handles2, labels1 + labels2, loc="upper right")
-    ax1.set_title("Subspace Compression from FedViM to ACT-FedViM")
-    fig.tight_layout()
+    style_axis(ax, grid_axis="x")
+    ax.set_yticks(y)
+    ax.set_yticklabels(models)
+    ax.invert_yaxis()
+    ax.set_xlim(0, max_fixed + 170)
+    ax.set_xlabel("Subspace dimension k")
+    ax.set_title("Subspace compression under ACT selection", loc="left", pad=10, fontsize=13)
+
+    legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            markersize=8,
+            markerfacecolor="white",
+            markeredgecolor=COLORS["FedViM"],
+            markeredgewidth=2,
+            linestyle="None",
+            label="FedViM fixed-k",
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            markersize=8,
+            markerfacecolor=COLORS["ACT-FedViM"],
+            markeredgecolor="white",
+            linestyle="None",
+            label="ACT-selected k",
+        ),
+    ]
+    ax.legend(
+        handles=legend_handles,
+        loc="upper right",
+        bbox_to_anchor=(1.0, 1.11),
+        ncol=2,
+        columnspacing=1.4,
+        handletextpad=0.6,
+    )
     save_figure(fig, output_dir, "figure_2_subspace_compression")
 
 
 def plot_selected_models(selected_rows: list[dict], output_dir: Path) -> None:
-    models = [display_model_name(row["model_name"]) for row in selected_rows]
-    x = np.arange(len(models))
-    width = 0.18
+    fig, axes = plt.subplots(1, 3, figsize=(12.8, 5.6), sharey=True)
+    fig.subplots_adjust(left=0.08, right=0.985, top=0.82, bottom=0.24, wspace=0.03)
+    categories = ["Near-OOD", "Far-OOD"]
+    x = np.arange(len(categories))
+    width = 0.28
 
-    fig, ax = plt.subplots(figsize=(12, 5))
-    ax.bar(x - 1.5 * width, [row["fedvim_near_auroc"] * 100 for row in selected_rows], width=width, color="#4F81BD", label="FedViM Near")
-    ax.bar(x - 0.5 * width, [row["act_near_auroc"] * 100 for row in selected_rows], width=width, color="#C0504D", label="ACT Near")
-    ax.bar(x + 0.5 * width, [row["fedvim_far_auroc"] * 100 for row in selected_rows], width=width, color="#95B3D7", label="FedViM Far")
-    ax.bar(x + 1.5 * width, [row["act_far_auroc"] * 100 for row in selected_rows], width=width, color="#E6B8B7", label="ACT Far")
+    for ax, row in zip(axes, selected_rows):
+        fed_values = [row["fedvim_near_auroc"] * 100, row["fedvim_far_auroc"] * 100]
+        act_values = [row["act_near_auroc"] * 100, row["act_far_auroc"] * 100]
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(models)
-    ax.set_ylabel("AUROC (%)")
-    ax.set_ylim(75, 100)
-    ax.grid(axis="y", linestyle="--", alpha=0.3)
-    ax.legend(loc="lower right")
-    ax.set_title("Representative Thesis Models")
-    fig.tight_layout()
+        fed_bars = ax.bar(
+            x - width / 2,
+            fed_values,
+            width=width,
+            color=COLORS["FedViM"],
+            edgecolor=EDGE_COLOR,
+            linewidth=0.55,
+            zorder=3,
+            label="FedViM",
+        )
+        act_bars = ax.bar(
+            x + width / 2,
+            act_values,
+            width=width,
+            color=COLORS["ACT-FedViM"],
+            edgecolor=EDGE_COLOR,
+            linewidth=0.55,
+            zorder=3,
+            label="ACT-FedViM",
+        )
+
+        style_axis(ax, grid_axis="y")
+        ax.set_ylim(78, 98.5)
+        ax.set_xticks(x)
+        ax.set_xticklabels(["Near", "Far"])
+        ax.set_title(display_model_name(row["model_name"]), fontsize=13, pad=26)
+        ax.text(
+            0.5,
+            1.002,
+            CASE_NOTES[row["model_name"]],
+            transform=ax.transAxes,
+            ha="center",
+            va="bottom",
+            fontsize=9.6,
+            color=TEXT_SUBTLE,
+        )
+        ax.text(
+            0.5,
+            -0.18,
+            f"k {row['fedvim_fixed_k']} -> {row['act_k']}  |  -{row['act_compression_rate'] * 100:.1f}%",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=9.0,
+            color=TEXT_SUBTLE,
+        )
+        add_bar_labels(ax, fed_bars)
+        add_bar_labels(ax, act_bars)
+
+    axes[0].set_ylabel("AUROC (%)")
+    legend_handles = [
+        Patch(facecolor=COLORS["FedViM"], edgecolor=EDGE_COLOR, label="FedViM"),
+        Patch(facecolor=COLORS["ACT-FedViM"], edgecolor=EDGE_COLOR, label="ACT-FedViM"),
+    ]
+    fig.legend(
+        handles=legend_handles,
+        loc="upper center",
+        ncol=2,
+        bbox_to_anchor=(0.5, 0.97),
+        columnspacing=1.8,
+        handletextpad=0.6,
+    )
     save_figure(fig, output_dir, "figure_3_selected_models")
 
 
@@ -172,11 +374,11 @@ Five-model Near-OOD and Far-OOD AUROC comparison for `FedViM`, `ACT-FedViM`, `MS
 
 ## Figure 2
 
-Comparison between the fixed-k FedViM subspace dimension and the ACT-selected subspace dimension. The average compression rate is {summary['act_vs_fedvim']['avg_compression_rate'] * 100:.1f}% across the five CNN backbones.
+Representative thesis models covering three complementary cases: lightweight deployment (`MobileNetV3-Large`), balanced compression-performance tradeoff (`ResNet101`), and fixed-k mismatch correction (`DenseNet169`).
 
 ## Figure 3
 
-Representative thesis models covering three complementary cases: lightweight deployment (`MobileNetV3-Large`), balanced compression-performance tradeoff (`ResNet101`), and fixed-k mismatch correction (`DenseNet169`).
+Comparison between the fixed-k FedViM subspace dimension and the ACT-selected subspace dimension. The average compression rate is {summary['act_vs_fedvim']['avg_compression_rate'] * 100:.1f}% across the five CNN backbones.
 """
     (output_dir / "figure_captions.md").write_text(content, encoding="utf-8")
 
@@ -188,7 +390,7 @@ def main() -> None:
     selected_rows = load_json(args.selected_json)
     output_dir = Path(args.output_dir)
 
-    plt.style.use("seaborn-v0_8-whitegrid")
+    configure_matplotlib()
     plot_method_comparison(rows, output_dir)
     plot_subspace_compression(rows, output_dir)
     plot_selected_models(selected_rows, output_dir)
