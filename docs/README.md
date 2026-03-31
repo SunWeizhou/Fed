@@ -20,5 +20,5 @@
 
 ## 说明
 
-- `docs/paper/` 中仍可能保留历史 handover 或探索材料，但它们不再属于论文主结果口径。
+- 非论文主线的历史 handover、执行清单和分析备忘录已移到本地 `archive/`。
 - 当前仓库不再把 `SCR-OOD`、`WDiscOOD`、Transformer/ConvNeXt 实验写入论文主线。

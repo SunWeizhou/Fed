@@ -40,67 +40,38 @@ class TrainingConfig:
 
 
 class ModelConfig:
-    """Model-specific configurations"""
+    """Model-specific configurations for the 5 CNN backbones used in the paper."""
 
     # Feature dimensions
     FEATURE_DIMS = {
-        'densenet121': 1024,
         'densenet169': 1664,
-        'densenet201': 1920,
         'resnet50': 2048,
         'resnet101': 2048,
-        'convnext_tiny': 768,
-        'convnext_base': 1024,
-        'swin_t': 768,
-        'vit_b_16': 768,
-        'vit_b_32': 768,
-        'deit_base': 768,
         'mobilenetv3_large': 960,
-        'efficientnet_v2_s': 1280
+        'efficientnet_v2_s': 1280,
     }
 
     # BatchNorm freezing recommendations
-    # Note: ViT/DeiT use LayerNorm, not BatchNorm, so freeze_bn has no effect
     FREEZE_BN_DEFAULTS = {
-        'convnext_tiny': 1,      # CRITICAL for OOD detection
-        'convnext_base': 1,      # CRITICAL for OOD detection
-        'swin_t': 1,             # CRITICAL for OOD detection
-        'vit_b_16': 0,           # LayerNorm only, no effect
-        'vit_b_32': 0,           # LayerNorm only, no effect
-        'deit_base': 0,          # LayerNorm only, no effect
-        'mobilenetv3_large': 0,  # Has LayerNorm variants
-        'densenet121': 0,
+        'mobilenetv3_large': 0,
         'densenet169': 0,
         'resnet50': 0,
         'resnet101': 0,
-        'efficientnet_v2_s': 0
+        'efficientnet_v2_s': 0,
     }
 
-    # Optimizer type selection
-    # Transformers (ViT, DeiT, Swin) and modern CNNs (ConvNeXt) use AdamW
-    USE_ADAMW_MODELS = {'convnext_tiny', 'convnext_base', 'swin_t', 'vit_b_16', 'vit_b_32', 'deit_base'}
+    # Paper version keeps the current five-model SGD training recipe unchanged.
+    USE_ADAMW_MODELS = set()
 
     # Batch size adjustments (for memory-constrained training)
     BATCH_SIZE_OVERRIDES = {
-        'convnext_tiny': 16,      # Requires smaller batch + accumulation
-        'convnext_base': 8,       # Larger model, needs even smaller batch
-        'swin_t': 16,             # Requires smaller batch + accumulation
-        'vit_b_16': 16,           # ViT requires smaller batch + accumulation
-        'vit_b_32': 16,           # ViT requires smaller batch + accumulation
-        'deit_base': 16,          # DeiT requires smaller batch + accumulation
         'resnet101': 16,          # Deeper model, use smaller batch
-        'mobilenetv3_large': 64   # Lightweight, can use larger batch
+        'mobilenetv3_large': 64,  # Lightweight, can use larger batch
     }
 
     # Accumulation steps for effective batch size
     ACCUMULATION_STEPS = {
-        'convnext_tiny': 6,
-        'convnext_base': 8,       # Larger model needs more accumulation
-        'swin_t': 6,
-        'vit_b_16': 6,
-        'vit_b_32': 6,
-        'deit_base': 6,
-        'resnet101': 4
+        'resnet101': 4,
     }
 
 
@@ -122,7 +93,7 @@ class ViMConfig:
 class OptimizerConfig:
     """Optimizer configurations"""
 
-    # AdamW (for transformers and modern CNNs)
+    # Retained for compatibility if future variants re-enable AdamW.
     ADAMW_BETAS = (0.9, 0.999)
     ADAMW_EPS = 1e-8
 
@@ -131,15 +102,6 @@ class OptimizerConfig:
 RECOMMENDED_CONFIGS = {
     'resnet50': {
         'base_lr': 0.001,  # Will be scaled to 0.01 for SGD
-        'batch_size': 32,
-        'freeze_bn': 0,
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10
-    },
-    'densenet121': {
-        'base_lr': 0.001,
         'batch_size': 32,
         'freeze_bn': 0,
         'weight_decay': 1e-4,
@@ -156,51 +118,8 @@ RECOMMENDED_CONFIGS = {
         'local_epochs': 4,
         'early_stop_patience': 10
     },
-    'convnext_tiny': {
-        'base_lr': 0.001,  # AdamW
-        'batch_size': 16,
-        'accumulation_steps': 6,
-        'freeze_bn': 1,  # CRITICAL
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10
-    },
-    'swin_t': {
-        'base_lr': 0.001,  # AdamW
-        'batch_size': 16,
-        'accumulation_steps': 6,
-        'freeze_bn': 1,  # CRITICAL
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10,
-        'warmup_rounds': 10  # Transformers need more warmup
-    },
-    'vit_b_16': {
-        'base_lr': 0.001,  # AdamW
-        'batch_size': 16,
-        'accumulation_steps': 6,
-        'freeze_bn': 0,  # LayerNorm only, no effect
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10,
-        'warmup_rounds': 10  # Transformers need more warmup
-    },
-    'vit_b_32': {
-        'base_lr': 0.001,  # AdamW
-        'batch_size': 16,
-        'accumulation_steps': 6,
-        'freeze_bn': 0,  # LayerNorm only, no effect
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10,
-        'warmup_rounds': 10  # Transformers need more warmup
-    },
     'efficientnet_v2_s': {
-        'base_lr': 0.001,  # AdamW
+        'base_lr': 0.001,  # SGD
         'batch_size': 32,
         'freeze_bn': 0,
         'weight_decay': 1e-4,
@@ -208,7 +127,6 @@ RECOMMENDED_CONFIGS = {
         'local_epochs': 4,
         'early_stop_patience': 10
     },
-    # ==================== 新增模型配置 (方案B) ====================
     'mobilenetv3_large': {
         'base_lr': 0.001,  # SGD
         'batch_size': 64,  # Lightweight, larger batch
@@ -217,17 +135,6 @@ RECOMMENDED_CONFIGS = {
         'communication_rounds': 50,
         'local_epochs': 4,
         'early_stop_patience': 10
-    },
-    'convnext_base': {
-        'base_lr': 0.001,  # AdamW
-        'batch_size': 8,   # Larger model, smaller batch
-        'accumulation_steps': 8,
-        'freeze_bn': 1,    # CRITICAL for OOD
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10,
-        'warmup_rounds': 10
     },
     'resnet101': {
         'base_lr': 0.001,  # SGD
@@ -238,17 +145,6 @@ RECOMMENDED_CONFIGS = {
         'communication_rounds': 50,
         'local_epochs': 4,
         'early_stop_patience': 10
-    },
-    'deit_base': {
-        'base_lr': 0.001,  # AdamW
-        'batch_size': 16,
-        'accumulation_steps': 6,
-        'freeze_bn': 0,    # LayerNorm only
-        'weight_decay': 1e-4,
-        'communication_rounds': 50,
-        'local_epochs': 4,
-        'early_stop_patience': 10,
-        'warmup_rounds': 10
     }
 }
 
@@ -258,7 +154,7 @@ def get_model_config(model_type):
     Get recommended configuration for a model type
 
     Args:
-        model_type: Model type string (e.g., 'resnet50', 'convnext_tiny')
+        model_type: Model type string (e.g., 'resnet50', 'mobilenetv3_large')
 
     Returns:
         dict: Configuration dictionary
@@ -301,7 +197,7 @@ def get_feature_dim(model_type):
 
 if __name__ == "__main__":
     # Test configuration retrieval
-    for model in ['resnet50', 'densenet121', 'convnext_tiny', 'swin_t', 'efficientnet_v2_s']:
+    for model in ['resnet50', 'resnet101', 'densenet169', 'efficientnet_v2_s', 'mobilenetv3_large']:
         config = get_model_config(model)
         print(f"\n{model.upper()} Configuration:")
         for key, value in config.items():

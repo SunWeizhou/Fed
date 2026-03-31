@@ -9,89 +9,35 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from torchvision.models import (
-    DenseNet121_Weights,
     DenseNet169_Weights,
-    DenseNet201_Weights,
+    EfficientNet_V2_S_Weights,
+    MobileNet_V3_Large_Weights,
     ResNet50_Weights,
-    Swin_T_Weights,
+    ResNet101_Weights,
 )
-
-try:
-    from torchvision.models import ConvNeXt_Tiny_Weights, EfficientNet_V2_S_Weights
-except ImportError:
-    ConvNeXt_Tiny_Weights = None
-    EfficientNet_V2_S_Weights = None
-
-try:
-    from torchvision.models import ViT_B_16_Weights, ViT_B_32_Weights
-except ImportError:
-    ViT_B_16_Weights = None
-    ViT_B_32_Weights = None
-
-try:
-    from torchvision.models import (
-        MobileNet_V3_Large_Weights,
-        ConvNeXt_Base_Weights,
-        ResNet101_Weights,
-    )
-except ImportError:
-    MobileNet_V3_Large_Weights = None
-    ConvNeXt_Base_Weights = None
-    ResNet101_Weights = None
-
-try:
-    import timm
-
-    HAS_TIMM = True
-except ImportError:
-    HAS_TIMM = False
-    print("Warning: timm not installed. DeiT models will not be available.")
-    print("Install with: pip install timm")
 
 
 class Backbone(nn.Module):
     """
     通用骨干网络包装器。
 
-    支持: DenseNet, ResNet, ConvNeXt, EfficientNetV2, Swin, ViT, MobileNet, DeiT
+    当前论文版仅支持 5 个 CNN backbone:
+    DenseNet169, ResNet50, ResNet101, EfficientNetV2-S, MobileNetV3-Large
     """
 
-    def __init__(self, model_type="densenet121", pretrained=True):
+    def __init__(self, model_type="densenet169", pretrained=True):
         super().__init__()
         self.model_type = model_type.lower()
 
-        if self.model_type.startswith("densenet"):
-            if self.model_type == "densenet121":
-                weights = DenseNet121_Weights.DEFAULT if pretrained else None
-                self.backbone = models.densenet121(weights=weights)
-                self.feature_dim = 1024
-            elif self.model_type == "densenet169":
-                weights = DenseNet169_Weights.DEFAULT if pretrained else None
-                self.backbone = models.densenet169(weights=weights)
-                self.feature_dim = 1664
-            elif self.model_type == "densenet201":
-                weights = DenseNet201_Weights.DEFAULT if pretrained else None
-                self.backbone = models.densenet201(weights=weights)
-                self.feature_dim = 1920
-            else:
-                raise ValueError(f"不支持的 DenseNet 类型: {model_type}")
+        if self.model_type == "densenet169":
+            weights = DenseNet169_Weights.DEFAULT if pretrained else None
+            self.backbone = models.densenet169(weights=weights)
+            self.feature_dim = 1664
             self.backbone.classifier = nn.Identity()
 
-        elif self.model_type == "convnext_tiny":
-            weights = ConvNeXt_Tiny_Weights.DEFAULT if (pretrained and ConvNeXt_Tiny_Weights) else None
-            if ConvNeXt_Tiny_Weights:
-                self.backbone = models.convnext_tiny(weights=weights)
-            else:
-                self.backbone = models.convnext_tiny(pretrained=pretrained)
-            self.feature_dim = 768
-            self.backbone.classifier[2] = nn.Identity()
-
         elif self.model_type == "efficientnet_v2_s":
-            weights = EfficientNet_V2_S_Weights.DEFAULT if (pretrained and EfficientNet_V2_S_Weights) else None
-            if EfficientNet_V2_S_Weights:
-                self.backbone = models.efficientnet_v2_s(weights=weights)
-            else:
-                self.backbone = models.efficientnet_v2_s(pretrained=pretrained)
+            weights = EfficientNet_V2_S_Weights.DEFAULT if pretrained else None
+            self.backbone = models.efficientnet_v2_s(weights=weights)
             self.feature_dim = 1280
             self.backbone.classifier[1] = nn.Identity()
 
@@ -101,60 +47,17 @@ class Backbone(nn.Module):
             self.feature_dim = 2048
             self.backbone.fc = nn.Identity()
 
-        elif self.model_type == "swin_t":
-            weights = Swin_T_Weights.DEFAULT if pretrained else None
-            self.backbone = models.swin_t(weights=weights)
-            self.feature_dim = 768
-            self.backbone.head = nn.Identity()
-
-        elif self.model_type == "vit_b_16":
-            weights = ViT_B_16_Weights.DEFAULT if (pretrained and ViT_B_16_Weights) else None
-            if ViT_B_16_Weights:
-                self.backbone = models.vit_b_16(weights=weights)
-            else:
-                self.backbone = models.vit_b_16(pretrained=pretrained)
-            self.feature_dim = 768
-            self.backbone.heads.head = nn.Identity()
-
-        elif self.model_type == "vit_b_32":
-            weights = ViT_B_32_Weights.DEFAULT if (pretrained and ViT_B_32_Weights) else None
-            if ViT_B_32_Weights:
-                self.backbone = models.vit_b_32(weights=weights)
-            else:
-                self.backbone = models.vit_b_32(pretrained=pretrained)
-            self.feature_dim = 768
-            self.backbone.heads.head = nn.Identity()
-
         elif self.model_type == "mobilenetv3_large":
-            weights = MobileNet_V3_Large_Weights.DEFAULT if (pretrained and MobileNet_V3_Large_Weights) else None
-            if MobileNet_V3_Large_Weights:
-                self.backbone = models.mobilenet_v3_large(weights=weights)
-            else:
-                self.backbone = models.mobilenet_v3_large(pretrained=pretrained)
+            weights = MobileNet_V3_Large_Weights.DEFAULT if pretrained else None
+            self.backbone = models.mobilenet_v3_large(weights=weights)
             self.feature_dim = 960
             self.backbone.classifier = nn.Identity()
-
-        elif self.model_type == "convnext_base":
-            weights = ConvNeXt_Base_Weights.DEFAULT if (pretrained and ConvNeXt_Base_Weights) else None
-            if ConvNeXt_Base_Weights:
-                self.backbone = models.convnext_base(weights=weights)
-            else:
-                self.backbone = models.convnext_base(pretrained=pretrained)
-            self.feature_dim = 1024
-            self.backbone.classifier[2] = nn.Identity()
 
         elif self.model_type == "resnet101":
             weights = ResNet101_Weights.DEFAULT if pretrained else None
             self.backbone = models.resnet101(weights=weights)
             self.feature_dim = 2048
             self.backbone.fc = nn.Identity()
-
-        elif self.model_type == "deit_base":
-            if not HAS_TIMM:
-                raise ImportError("DeiT requires timm library. Install with: pip install timm")
-            self.backbone = timm.create_model("deit_base_patch16_224", pretrained=pretrained)
-            self.feature_dim = 768
-            self.backbone.head = nn.Identity()
 
         else:
             raise ValueError(f"不支持的模型类型: {model_type}")

@@ -93,29 +93,14 @@ python3 paper_tools/generate_paper_tables.py
 - 方法平均表现表
 - 论文摘要口径 markdown
 
-## 多机脚本
-
-五模型一机一卡训练按以下映射固定：
-
-- `dell@10.24.1.131` `cuda:1` -> `resnet101`
-- 本机 `cuda:0` -> `densenet169`
-- 本机 `cuda:1` -> `efficientnet_v2_s`
-- `dell7960@10.4.47.203` `cuda:0` -> `resnet50`
-- `dell7960@10.4.47.203` `cuda:1` -> `mobilenetv3_large`
-
-脚本入口：
-
-- `sync_fedvim_5models.sh`：同步代码和完整 `Plankton_OOD_Dataset`
-- `launch_fedvim_5models.sh`：在 5 张卡上一键启动训练+四方法评估
-- `fetch_fedvim_results.sh`：把远程实验结果回收到主机
-- `run_fedvim_model_pipeline.sh`：单模型训练+评估流水线
-
 ## 目录说明
 
 - `train_federated.py`：纯训练入口
 - `evaluate_fedvim.py`：`FedViM` fixed-k 评估
 - `evaluate_act_fedvim.py`：`ACT-FedViM` 评估
 - `evaluate_baselines.py`：`MSP` / `Energy`
+- `advanced_fedvim.py`：`ACT-FedViM` 核心实现
+- `run_fedvim_model_pipeline.sh`：单模型训练+评估流水线
 - `paper_tools/collect_paper_results.py`：五模型结果收集
 - `paper_tools/generate_paper_tables.py`：markdown 表格生成
 - `docs/paper/ACT_FedViM_论文草稿.md`：当前论文草稿
@@ -123,5 +108,6 @@ python3 paper_tools/generate_paper_tables.py
 
 ## 说明
 
-- `wdiscood/`、旧 handover 文档和历史结果仍保留，但不属于论文主线。
+- 非论文主线的旧方法、旧实验、机器专用脚本和 handover 文档已移到本地 `archive/`。
+- `archive/` 已加入 `.gitignore`，整理工作区或上传 GitHub 时不会一起提交。
 - 当前正式论文口径是 `FedViM + empirical alpha`，`ACT-FedViM` 作为后处理自适应选维扩展。
