@@ -1,32 +1,22 @@
-# FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究
+# FedViM：面向多中心海洋浮游生物监测的联邦分布外检测方法研究
 
 ## 摘要
 
-海洋浮游生物图像监测通常由多个单位分别建设和维护本地数据中心。由于原始图像及其采样元信息可能关联采样海域、设备布放位置、时间节点和任务背景，跨中心直接汇聚原始数据往往受到数据治理和隐私约束。在此类多中心协作场景下，系统不仅需要完成联邦分类训练，还需要识别未见类别、鱼卵、鱼尾、气泡和颗粒等非目标样本，即分布外（Out-of-Distribution, OOD）样本。
+海洋浮游生物图像监测通常由多个单位分别建设和维护本地数据中心。由于原始图像及其采样元信息可能关联采样海域、设备布放位置、时间节点和任务背景，跨中心直接汇聚原始数据往往受到数据治理和隐私约束。在此类多中心协作场景下，系统不仅需要提升联邦学习模型的分类精度，还需要识别未见类别、鱼卵、鱼尾、气泡和颗粒等非目标样本，即分布外（Out-of-Distribution, OOD）样本。
 
-围绕这一需求，本文提出 `FedViM` ，一种面向联邦场景的后处理式 OOD 检测算法。该算法能够利用各客户端上传的一阶与二阶特征充分统计量，通过联邦化重构出全局样本特征均值与协方差，进而构建出 ViM 所需统计量，使得在不共享原始图像和样本级特征的条件下完成 OOD 检测。本文进一步提出 `ACT-FedViM` 作为 `FedViM` 的扩展方法，使用 ACT（Adjusted Correlation Thresholding）机制替代原始 ViM 中的 fixed-k 经验设定，为主子空间维度 `k` 提供统计驱动的自适应选择。
+围绕这一需求，本文提出 `FedViM` ，一种面向多中心海洋浮游生物监测的分布外检测方法。该方法能够利用各客户端上传的一阶与二阶特征充分统计量，通过联邦化重构出全局样本特征均值与协方差，进而构建出 ViM （Virtual-logit Matching）所需统计量，使得在不共享原始图像和单个样本特征的条件下完成 OOD 检测。本文进一步提出 `ACT-FedViM` 作为 `FedViM` 的扩展方法，使用 ACT（Adjusted Correlation Thresholding）机制替代原始 ViM 中的 fixed-k 经验设定，为主子空间维度 `k` 提供统计驱动的自适应选择。
 
-本文在基于 DYB-PlanktonNet 构建的OOD数据划分上，对五个由联邦学习的方式训练出的 CNN backbone 进行了评估。实验结果表明，`FedViM` 与 `ACT-FedViM` 的整体表现均优于 `MSP` 与 `Energy` 基线。`FedViM` 为多中心敏感图像场景提供了一条可实现的联邦后处理 OOD 检测路径；`ACT-FedViM` 则在此基础上进一步降低了主子空间规模和跨 backbone 手工选维负担，在保持良好检测性能的同时提升了部署友好性。
+本文在基于 DYB-PlanktonNet 构建的OOD数据划分上，对五个由联邦学习的方式训练出的 CNN backbone 进行了评估。实验结果表明，`FedViM` 与 `ACT-FedViM` 的整体表现均优于 `MSP` 与 `Energy` 基线。`FedViM` 为多中心海洋浮游生物的监测提供了一条可实现的联邦后处理 OOD 检测路径；`ACT-FedViM` 则在此基础上进一步降低了主子空间维度，在保持良好检测性能的同时提升了部署友好性。
 
 **关键词**：联邦学习；分布外检测；ViM；ACT；海洋浮游生物；图像识别
 
 ## Abstract
 
-Marine plankton monitoring is increasingly conducted by multiple institutions that maintain their own local data centers. Because raw images and their metadata may reveal sensitive information about sampling areas, equipment locations, timestamps, and mission backgrounds, directly pooling raw images across centers is often restricted by data governance and privacy requirements. In this multi-center setting, the system must not only perform federated classification, but also detect unseen plankton species, fish eggs, fish tails, bubbles, particles, and other non-target samples, namely out-of-distribution (OOD) samples.
+Plankton image monitoring in the ocean is typically conducted by multiple institutions, each maintaining its own local data center. Because raw images and their associated metadata may reveal sensitive information such as sampling regions, device deployment locations, time stamps, and mission backgrounds, direct cross-center sharing of raw data is often constrained by data governance and privacy requirements. In such multi-center collaborative settings, the system must not only improve the classification accuracy of federated learning models, but also identify unseen categories and non-target samples such as fish eggs, fish tails, bubbles, and particles, namely out-of-distribution (OOD) samples.
 
-To address this need, this thesis proposes `FedViM`, a federated implementation of post-hoc ViM for OOD detection. ViM is attractive in this task because it combines feature-space structure with classification logits and is well suited to fine-grained visual recognition. More importantly, the global feature mean and covariance required by ViM can be reconstructed from federated sufficient statistics. Accordingly, each client uploads first-order and second-order feature statistics after federated training, and the server reconstructs the global mean and covariance without accessing raw images or sample-level features.
+To address this need, this paper proposes **FedViM**, an OOD detection method for multi-center marine plankton monitoring. By aggregating first- and second-order feature sufficient statistics uploaded from each client, the proposed method reconstructs the global feature mean and covariance, thereby obtaining the statistics required by **ViM** (Virtual-logit Matching) and enabling OOD detection without sharing raw images or individual sample features. Furthermore, this paper proposes **ACT-FedViM** as an extension of **FedViM**, replacing the fixed-$k$ heuristic in the original ViM with the **ACT** (Adjusted Correlation Thresholding) mechanism, so as to provide a statistically driven adaptive selection of the principal subspace dimension $k$.
 
-On top of `FedViM`, this thesis further introduces `ACT-FedViM` as a post-hoc extension that replaces the fixed subspace dimension in the original ViM with ACT (Adjusted Correlation Thresholding). This extension keeps the covariance-based principal directions in ViM unchanged and only adapts the choice of the principal subspace dimension `k`.
-
-Experiments are conducted on an OOD split constructed from DYB-PlanktonNet with five CNN backbones: `ResNet101`, `EfficientNetV2-S`, `MobileNetV3-Large`, `DenseNet169`, and `ResNet50`. The evaluation covers `54` in-distribution classes, `26` Near-OOD classes, and `12` Far-OOD classes under a `5`-client federated split with Dirichlet `alpha=0.1`. The five-model results show that `ACT-FedViM` achieves an average ID accuracy of `96.48%`.
-
-Compared with fixed-k `FedViM`, it reduces the average subspace dimension from `804.8` to `108.2`, corresponding to an average compression rate of `86.2%`, while reaching `95.64%` and `96.34%` average AUROC on Near-OOD and Far-OOD tasks, respectively. Both `FedViM` and `ACT-FedViM` outperform the `MSP` and `Energy` baselines by clear margins.
-
-At the model level, the benefits of ACT are not uniform. The largest AUROC improvement appears on `DenseNet169`, while on the remaining backbones the more consistent contribution of ACT lies in subspace compression, reduced manual rank tuning, and deployment-friendly post-hoc inference.
-
-These results indicate that `FedViM` provides a practical federated OOD detection pipeline for privacy-constrained multi-center plankton monitoring, while `ACT-FedViM` further reduces subspace size and manual rank tuning burden without sacrificing competitive detection performance.
-
-**Key words**: federated learning; out-of-distribution detection; ViM; ACT; marine plankton; image recognition
+Experiments are conducted on an OOD split constructed from **DYB-PlanktonNet**, using five CNN backbones trained under a federated learning setting. The results show that both **FedViM** and **ACT-FedViM** outperform the **MSP** and **Energy** baselines overall. **FedViM** provides a practical federated post-hoc OOD detection pathway for multi-center marine plankton monitoring, while **ACT-FedViM** further reduces the principal subspace dimension and improves deployment efficiency while maintaining strong detection performance.**Key words**: federated learning; out-of-distribution detection; ViM; ACT; marine plankton; image recognition
 
 ---
 
@@ -34,57 +24,33 @@ These results indicate that `FedViM` provides a practical federated OOD detectio
 
 ### 1.1 研究背景与意义
 
-浮游生物是海洋生态系统中的基础组成部分，其丰度、群落结构和时空分布与营养盐循环、藻华暴发、食物网结构以及海洋生态安全密切相关。随着显微成像设备、流式成像平台和深度学习识别技术的发展，浮游生物监测已经由低通量人工镜检逐步转向高通量图像分析[7-10]。在这一过程中，自动分类模型能够承担越来越多的常规识别任务，但真实部署环境并不是一个封闭、静态的分类场景。
+浮游生物是海洋生态系统中的基础组成部分，其丰度、群落结构和时空分布与营养盐循环、藻华暴发、食物网结构以及海洋生态安全密切相关。对浮游生物进行持续、准确和高效的监测，不仅关系到海洋生态过程的科学认识，也直接服务于海洋环境评估、生态预警和资源管理等实际需求。随着显微成像设备、流式成像平台和深度学习识别技术的发展，浮游生物监测已经由低通量人工镜检逐步转向高通量图像分析[7-10]。在这一过程中，如何深度学习分类模型对海洋浮游生物进行更高效、更自动化的监测已经逐渐成为一个海洋浮游生物监测领域的重要问题。
 
-一方面，海洋浮游生物监测往往由不同海域、不同科研平台或不同业务单位分别建设和维护本地数据中心。不同中心在采样环境、成像设备、类别分布和标注进度上存在明显差异，原始图像及其采样元信息还可能关联采样位置、设备布放和任务背景等敏感内容，因此跨中心直接汇聚原始数据并不总是可行。联邦学习通过“数据保留在本地、模型更新在中心间聚合”的方式，为此类多中心协作场景提供了可行方案[1][11][12]。
+然而，面向真实业务场景的海洋浮游生物监测并不是一个理想化的集中式封闭分类任务。一方面，海洋浮游生物监测往往由不同海域、不同科研平台或不同业务单位分别建设和维护本地数据中心。不同中心在采样环境、成像设备、类别分布和标注进度上存在明显差异，原始图像及其采样元信息还可能关联采样位置、设备布放和任务背景等敏感内容，因此跨中心直接汇聚原始数据并不总是可行。对于这类多中心协作的场景，如何能够在不直接上传原始图像数据和单个样本特征的前提下利用各中心数据，已经成为海洋监测领域的关键课题。联邦学习通过“数据保留在本地、模型更新在中心间聚合”的方式，为此类多中心协作场景提供了可行方案[1][11][12]。
 
-另一方面，海洋浮游生物监测具有显著的开放环境特征。即使分类模型已经学习了训练集中定义的 ID 类别，测试阶段仍可能出现未见浮游生物类别、鱼卵、鱼尾、气泡和颗粒杂波等样本。如果系统对这些样本给出高置信度误判，将直接影响监测结果的可靠性。已有浮游生物识别研究也逐步将这一问题表述为 dataset shift、open-set recognition 或 OOD detection，而不再将其视为单纯的封闭集分类任务[13-15]。因此，在多中心隐私约束下，仅提升联邦分类准确率并不足以支撑实际部署，系统还需要具备面向未知样本的拒识能力。
+另一方面，海洋浮游生物监测具有显著的开放世界特征。即使分类模型已经学习了训练集中定义的已知类别（in-distribution， ID），但真实场景下仍不可避免地出现未见浮游生物类别、鱼卵、鱼尾、气泡和颗粒杂波等样本。如果系统对这些样本给出高置信度误判，将直接影响监测结果的可靠性。因此，在真实部署条件下，仅仅提高ID类别上的分类准确率并不足以保证系统可用性，模型还需要具备对未知类别的拒识能力。因此，多中心海洋浮游生物的监测所面临的，不只是分类精度问题，更是原始图像数据不能汇聚的约束下，进行分布外样本检测的问题。
 
-基于上述背景，本文关注的核心问题是：**在不共享原始图像的多中心海洋浮游生物监测场景下，如何为联邦化的图像识别任务构建可实现、可复用的 OOD 检测方法。**对于这一问题，后处理式OOD检测能展现出良好的适用性。对于已经完成联邦训练的分类 backbone，后处理方法能够在不重新设计训练框架、不引入额外生成模型或辅助分类器的前提下提供 OOD 检测能力。这种即插即用与轻量化的特性，使其能够更容易地部署在现有的多中心检测流程中去。因此，本文选择从联邦后处理OOD检测展开研究。
+基于上述背景，本文关注的核心问题是：**在不共享原始图像的多中心海洋浮游生物监测场景下，如何为联邦化的图像识别任务构建可实现、可复用的 OOD 检测方法。**对于这一问题，后处理式OOD检测能展现出良好的适用性。对于已经完成联邦训练的分类模型，后处理方法能够在不重新设计训练框架、不引入额外生成模型的前提下提供 OOD 检测能力。这种即插即用与轻量化的特性，使其能够更容易地部署在现有的多中心海洋浮游生物的监测中去。围绕这一思路，研究联邦场景下的后处理 OOD 检测方法，不仅具有明确的理论意义，也具有较强的实际应用价值。
 
 ### 1.2 国内外研究现状
 
-#### 1.2.1 海洋浮游生物图像识别与监测
+海洋浮游生物图像识别已经从低通量人工镜检逐步发展到自动分类、高通量分析和现场部署[7-9]。相关研究一方面关注显微成像或流式成像条件下的自动识别流程，另一方面也面向边缘部署、实时监测和海上自适应采样等应用方向展开探索[8][9]。这表明，海洋浮游生物图像识别正在从实验室条件下的离线分类任务逐步走向真实业务场景。然而，与封闭集图像分类不同，真实海洋环境中的样本分布会受到海域差异、成像条件、季节变化和设备差异等多种因素影响，系统面临的并不只是已知类别之间的分类问题，还需要能够识别出开放世界中的未知物种。已有研究已经从数据分布偏移（dataset shift）[15]、开放集识别（open-set recognition）[14] 和分布外（out-of-distribution, OOD）检测[13] 等角度讨论了海洋浮游生物监测系统在真实部署中的失效风险。这说明，海洋浮游生物识别在实际应用中不仅是分类问题，也是开放世界的识别问题。
 
-已有研究表明，海洋浮游生物图像识别已经从低通量人工镜检逐步发展到自动分类、高通量分析和现场部署[7-9]。相关工作一方面关注显微成像或流式成像条件下的自动识别流程，另一方面也关注边缘部署、实时监测和海上自适应采样等应用方向[8][9]。这些研究说明，浮游生物智能识别已经从离线分类任务逐步走向真实业务场景。
+在多中心海洋监测场景下，这一问题又进一步受到数据协作方式的约束，而无法采用集中式训练。现有工作普遍将联邦学习视为多中心数据协作的重要框架。FedAvg[1] 建立了最经典的参数平均范式，其基本思想是各客户端保留原始数据，仅上传模型参数或相关统计量在服务器进行聚合。此后，大量研究围绕其通信效率、非独立同分布数据（non-IID）和隐私保护等问题展开，逐步扩展了联邦学习的理论与应用边界[11][12]。现有研究大体可以分为两类：一类主要关注标准联邦分类训练的准确率、收敛性和系统效率[1][11]；另一类则更强调异构场景下的隐私保护、个性化适配和应用部署[12]。随着 OOD 问题在真实部署中的重要性不断提高，已有工作也开始关注联邦场景下的 OOD 检测[6]。但现有联邦 OOD 方法往往与训练阶段的额外模块或生成式结构高度耦合，带来额外计算开销和实现复杂度。相比之下，对于已经完成联邦训练的分类模型，后处理式 （post-hoc）OOD 检测无需重新设计训练框架，且兼具轻量化与“即插即用”的适配性，更适合作为多中心联邦识别系统的扩展。
 
-从研究重点上看，一类工作主要关注识别精度与高通量分类系统构建[7]，另一类工作更强调现场部署、实时处理和边缘计算条件下的可用性[8][9]。与实验室环境相比，真实海洋场景中的样本分布会受到海域差异、成像条件、季节变化和设备差异等因素影响，系统面临的并不只是封闭集分类问题。
+后处理式OOD 检测方法以已训练完成的分类模型为基础，不需要重新训练完整系统，部署成本较低，也更容易与现有任务兼容。现有方法大体可以分为两类：一类主要利用输出空间信息，另一类进一步利用特征空间结构。输出空间方法中，`MSP`[4] 通过最大 softmax 概率刻画模型置信度，是最经典的 OOD 基线之一；`Energy`[5] 则利用 logits 的 log-sum-exp 构造能量分数，在多个视觉任务上表现出较强竞争力。与这类方法相比，特征空间方法进一步利用中间特征与分类结果之间的几何关系。ViM（Virtual-logit Matching）[2] 通过主子空间与残差空间分解，结合特征空间结构与 logits 来刻画样本偏离 ID 分布的程度，在多个视觉任务中表现出较强竞争力。在海洋浮游生物 OOD benchmark 上，Han 等[13] 对 `22` 种方法进行了统一比较，结果显示 ViM 在该基准上整体表现突出，并在 Far-OOD 场景中优势较为明显。从方法结构上来看，ViM 依赖全局特征均值与协方差，使其能够适配统计量可聚合的联邦学习场景。
 
-已有研究已经从数据分布偏移（dataset shift）[15]、开放集识别（open-set recognition）[14] 和分布外检测（out-of-distribution, OOD）[13] 等角度讨论了海洋浮游生物监测系统在真实世界部署中的失效风险。这表明浮游生物识别在实际应用中不仅是分类问题，也是开放环境识别问题。因此，针对部署阶段拒识能力的系统讨论仍然重要。
+尽管 ViM 为后处理式 OOD 检测提供了较有竞争力的技术路线，但在其实际应用中仍存在一个关键问题，即主子空间维度 `k` 的设定通常依赖经验选择[2]。固定维度方案（fixed-k）虽然实现简单，但不同模型的网络结构和特征维度差异明显，经验式 fixed-k 设定往往缺乏统一的统计依据，并可能在不同模型之间带来适配性差异。此外，当 `k` 取值过大时，部署阶段需要保存的投影矩阵规模和 计算OOD 分数的开销都会增加，不利于后处理模块的轻量化落地。在高维统计场景中，当特征维度与样本量处于相近量级时，样本协方差的特征值容易受到噪声膨胀影响，因此如何从样本协方差或相关矩阵中估计有效维度，已成为一条独立的重要研究线索。ACT（Adjusted Correlation Thresholding）[3] 属于这一方向的代表方法，它通过相关矩阵谱修正与阈值判别估计因子数量，从而为高维特征空间中的有效维度选择提供数据驱动依据。就 ViM 而言，这类方法为主子空间维度选择提供了可借鉴的统计工具。
 
-#### 1.2.2 联邦学习与多中心隐私协作
-
-现有工作普遍将联邦学习视为多中心数据协作的重要框架。FedAvg[1] 建立了最经典的参数平均范式，其核心思想是各客户端保留原始数据，仅上传模型参数或更新到服务器进行聚合。此后，大量研究围绕通信效率、优化稳定性、非独立同分布数据（non-IID）和隐私保护等问题展开，逐步扩展了联邦学习的理论与应用边界[11][12]。
-
-从研究方向上看，一类工作主要关注标准联邦分类训练的准确率、收敛性和系统效率[1][11]；另一类工作则更关注异构场景下的隐私保护、个性化适配和应用部署[12]。与标准参数聚合框架相比，在某些统计估计或后处理任务中，聚合客户端侧统计量也被视为一种可行思路，但这类研究通常不是联邦学习文献的主线。
-
-现有联邦学习研究大多聚焦于 ID 分类性能提升，对于“联邦训练完成后如何为已有 backbone 增加后处理式 OOD 能力”的讨论仍然较少。已有面向联邦 OOD 的工作[6] 说明了方向上的可行性，但这类方法通常在训练阶段与OOD检测模块高度耦合，带来较大计算开销。面向联邦分类模型的后处理式 OOD 检测，还没有文献进行深入探讨。
-
-#### 1.2.3 后处理式 OOD 检测方法
-
-后处理式（post-hoc）OOD 检测方法以已经训练完成的分类模型为基础，不需要重新训练完整系统，部署成本较低，也更容易与现有业务模型衔接。现有方法大体可以分为两类：一类主要利用输出空间信息，另一类进一步利用特征空间结构。
-
-输出空间方法中，`MSP`[4] 通过最大 softmax 概率刻画模型置信度，是最经典的 OOD 基线之一；`Energy`[5] 则利用 logits 的 log-sum-exp 构造能量分数，在多个视觉任务上表现出较强竞争力。与 `MSP` 相比，`Energy` 对 logits 分布的利用更充分，但这两类方法都主要依赖输出层信息，对于特征结构的利用相对有限。
-
-特征空间方法则进一步利用中间特征与分类结果之间的几何关系。ViM[2] 通过主子空间与残差空间分解，结合特征空间结构与 logits 来刻画样本偏离 ID 分布的程度。在多个视觉任务中，ViM 都表现出较强竞争力。在浮游生物 OOD benchmark 上，Han 等[13] 对 `22` 种方法进行了统一比较，结果显示 ViM 在该基准上整体表现突出，并在 Far-OOD 场景中优势较为明显。由方法结构看，ViM 依赖全局特征均值与协方差，这使其在统计量可聚合场景下具有潜在适配性。
-
-#### 1.2.4 ACT 与高维统计选维
-
-在高维统计场景中，当特征维度与样本量处于相近量级时，经典统计学的中的“样本量远大于维度”的渐进假设被打破，在这一高维机制下，样本协方差矩阵的经验特征值将不再是真实总体特征值的无偏估计。Marchenko-Pastur定律指出，高维春早生数据亦会产生显著的非零特征值，导致大量噪声维度可能会被误认为信号，因此固定主子空间维度往往缺乏充分统计依据。相关研究普遍关注如何从样本协方差或相关矩阵中估计有效维度、因子数或主要结构的秩。
-
-ACT（Adjusted Correlation Thresholding）[3] 属于这类高维统计方法。该方法通过相关矩阵谱修正与阈值判别来估计因子数量，从而达到对高维样本协方差矩阵的特征空间的有效维度选择法。在ViM的主子空间计算中，ACT 可以为其维度选择提供数据驱动依据。
-
-综上，已有研究分别从浮游生物开放环境识别、多中心隐私协作、后处理式 OOD 检测和高维统计选维等角度提供了重要基础。但在多中心海洋浮游生物监测中的联邦后处理 OOD 检测问题上，仍然缺乏一种方法将它们系统整合。
+综上，已有研究分别从浮游生物开放环境识别、多中心数据协作、后处理式 OOD 检测以及高维统计选维等方面提供了重要基础：真实海洋监测提出了面向OOD样本的检测需求，多中心协作使这一需求需要在联邦框架下讨论，ViM为已完成训练的分类模型提供了OOD检测的路径，而高维统计中的有效维度选择方法则为 ViM 的主子空间构造提供统计学支撑。然而，现有研究仍缺少一种能够面向多中心海洋浮游生物监测的分布外检测方法，使其在不共享原始图像的条件下复用联邦分类模型，并以后处理方式同时实现 OOD 检测与主子空间维度自适应选择。
 
 ### 1.3 本文主要工作
 
-在现有后处理方法中，`MSP`[4] 和 `Energy`[5] 是最常见的输出空间基线，分别利用最大 softmax 概率和 logits 的 log-sum-exp 能量进行判别。这类方法实现简单，但主要依赖输出层置信度信息。对于海洋浮游生物图像而言，Near-OOD 样本与 ID 类别往往在形态结构上较为接近，仅依赖输出空间置信度未必足以稳定地区分相近未知类与已知类。 相比之下，ViM[2] 同时利用特征空间结构和分类 logits，通过主子空间与残差空间分解刻画样本偏离 ID 分布的程度，更适合处理具有细粒度特征差异的视觉识别任务。在海洋浮游生物的监测领域，Han 等[13] 基于 DYB-PlanktonNet 构建了浮游生物 OOD 检测的 benchmark 。该研究统一比较了 `22` 种 OOD 检测方法，结果显示 ViM 在整体表现上具有较强竞争力，并在 Far-OOD 场景中尤为突出。同时，ViM 所依赖的关键统计量是全局的样本特征均值与协方差，它们均可以在服务器端由客户端上传的一阶与二阶特征充分统计量重构得到。由于ViM 在海洋浮游生物的监测任务上表现突出，并且在联邦学习的设定下具有适配性，因此本文将 ViM 联邦化，提出了FedViM 这一联邦后处理的OOD检测方法。 然而，将 ViM 引入联邦场景后，仍有一个关键问题需要处理。原始 ViM 依赖人为设定固定主子空间维度 `k`，通常固定为512或1024维。这种人为设定而非数据驱动的方式，缺乏明确的统计依据，会带来以下局限： 1. 不同 backbone 的网络结构差异明显、特征维度跨度较大，这种人为的设定难以适配不同结构的 backbone ，可能会导致在某种 backbone下性能下降。 2. 当 `k` 取值过大时，部署阶段需要保存的投影矩阵规模和 OOD 打分开销都会增加，不利于后处理模块的轻量化落地。
+针对上述研究缺口，本文围绕联邦后处理 OOD 检测展开研究。在不共享原始图像和单个样本特征的前提下，将 ViM 所需统计量的计算改写为联邦充分统计量聚合过程，构造 `FedViM`；同时，针对其主子空间维度 的选择问题，引入 ACT 构造 `ACT-FedViM`，以实现具有统计学依据的自适应选择。具体而言，本文主要完成了以下工作：
 
-围绕上述研究缺口，本文主要完成了以下工作：
-
-1. 面向多中心浮游生物检测场景，将ViM算法引入联邦学习，提出了 `FedViM`。各客户端仅上传一阶与二阶特征充分统计量，服务器据此完成全局均值与协方差重构，在不共享原始图像和样本级特征的条件下获得 ViM 所需的全局统计量。
-2. 针对FedViM主子空间维度的选择，提出了ACT-FedViM 方法，用统计驱动的方式代替了固定的维度选择，同时使FedViM更加轻量化，对于不同backbone也更具有适配性。
-3. 在五个 CNN backbone 上对MSP、Energy、FedViM和ACT-FedViM的OOD检测性能进行了系统评估。
+1. 面向多中心海洋浮游生物监测场景，将ViM引入联邦学习框架，提出了 `FedViM`。各客户端仅上传一阶与二阶特征充分统计量，服务器据此完成全局均值与协方差重构，在不共享原始图像和单个样本特征的条件下获得 ViM 所需的全局统计量。
+2. 针对FedViM主子空间维度的选择问题，提出了ACT-FedViM 方法，用统计驱动的方式代替了固定的维度选择，在保持OOD检测性能的同时，进一步压缩了主子空间的维度，增强了对不同分类模型的适应性。
+3. 在五个 CNN 模型上对MSP、Energy、FedViM和ACT-FedViM的OOD检测性能进行了系统评估。
 
 全文结构如下：第 2 章给出 `FedViM` 与 `ACT-FedViM` 的方法设计；第 3 章介绍数据集、联邦设置、backbone 范围、实现细节与评估指标；第 4 章展示五个 CNN backbone 上的实验结果，并对 `FedViM` 与 `ACT-FedViM` 的性能进行分析；第 5 章给出全文结论，并讨论当前工作的局限与后续研究方向。
 
