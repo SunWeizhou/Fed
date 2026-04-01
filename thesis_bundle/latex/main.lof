@@ -1,0 +1,7 @@
+\contentsline {figure}{\numberline {\relax 1}{\ignorespaces FedViM 与 ACT-FedViM 的联邦后处理流程图}}{5}{figure.caption.14}%
+\contentsline {figure}{\numberline {\relax 2}{\ignorespaces 五个 CNN 模型上 fixed-k FedViM 与 ACT-FedViM 的主子空间维度比较}}{12}{figure.caption.16}%
+\contentsline {figure}{\numberline {\relax 3}{\ignorespaces 五个 CNN 模型上 FedViM、ACT-FedViM、MSP 与 Energy 的 Near/Far-OOD AUROC 对比}}{13}{figure.caption.18}%
+\contentsline {figure}{\numberline {\relax 4}{\ignorespaces MobileNetV3-Large、ResNet101 与 DenseNet169 三个代表模型上的 Near/Far-OOD AUROC 对比}}{14}{figure.caption.19}%
+\let \contentsline \ttl@gobblecontents 
+\contentsfinish 
+\contentsfinish 

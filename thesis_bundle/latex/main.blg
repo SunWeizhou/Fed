@@ -1,0 +1,59 @@
+This is BibTeX, Version 0.99e (TeX Live 2026)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: bnuthesis-bachelor.bst
+A level-1 auxiliary file: bu.aux
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 150 items from 100.
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
+Reallocated global_strs (elt_size=200001) to 20 items from 10.
+Reallocated glb_str_end (elt_size=4) to 20 items from 10.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Database file #1: ref/refs.bib
+You've used 16 entries,
+            5374 wiz_defined-function locations,
+            1158 strings with 11252 characters,
+and the built_in function-call counts, 143898 in all, are:
+= -- 3236
+> -- 16407
+< -- 20479
++ -- 5711
+- -- 1072
+* -- 1057
+:= -- 19965
+add.period$ -- 57
+call.type$ -- 16
+change.case$ -- 136
+chr.to.int$ -- 5027
+cite$ -- 16
+duplicate$ -- 445
+empty$ -- 1556
+format.name$ -- 545
+if$ -- 37423
+int.to.chr$ -- 1
+int.to.str$ -- 17
+missing$ -- 0
+newline$ -- 110
+num.names$ -- 48
+pop$ -- 7316
+preamble$ -- 1
+purify$ -- 16
+quote$ -- 0
+skip$ -- 14984
+stack$ -- 0
+substring$ -- 6994
+swap$ -- 21
+text.length$ -- 392
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 176
+warning$ -- 0
+while$ -- 417
+width$ -- 0
+write$ -- 257

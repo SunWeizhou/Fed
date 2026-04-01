@@ -1,0 +1,134 @@
+\begin{thebibliography}{16}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{#1}
+\expandafter\ifx\csname urlstyle\endcsname\relax\else
+  \urlstyle{same}\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \DeclareUrlCommand\doi{\urlstyle{rm}}
+  \def\eprint#1#2{#2}
+\else
+  \def\doi#1{\href{https://doi.org/#1}{\nolinkurl{#1}}}
+  \let\eprint\href
+\fi
+
+\bibitem[Naselli-Flores et~al.(2023)Naselli-Flores and
+  Padis{\'a}k]{naselli2023ecosystem}
+NASELLI-FLORES L, PADIS{\'A}K J.
+\newblock Ecosystem services provided by marine and freshwater
+  phytoplankton\allowbreak[J/OL].
+\newblock Hydrobiologia, 2023, 850\allowbreak (12-13): 2691-2706.
+\newblock DOI: \doi{10.1007/s10750-022-04795-y}.
+
+\bibitem[Eerola et~al.(2024)Eerola, Kareinen, Pitois, et~al.]{eerola2024survey}
+EEROLA T, KAREINEN J, PITOIS S~G, et~al.
+\newblock Survey of automatic plankton image recognition: Challenges, existing
+  solutions and future perspectives\allowbreak[J/OL].
+\newblock Artificial Intelligence Review, 2024, 57\allowbreak (5): 114.
+\newblock DOI: \doi{10.1007/s10462-024-10745-y}.
+
+\bibitem[Pitois et~al.(2025)Pitois, Schmid, Eerola, et~al.]{pitois2025rapid}
+PITOIS S~G, SCHMID M~S, EEROLA T, et~al.
+\newblock {RAPID}: Real-time automated plankton identification dashboard using
+  edge {AI} at sea\allowbreak[J/OL].
+\newblock Frontiers in Marine Science, 2025, 11: 1513463.
+\newblock DOI: \doi{10.3389/fmars.2024.1513463}.
+
+\bibitem[Schmid et~al.(2023)Schmid, Eerola, Pitois, et~al.]{schmid2023edge}
+SCHMID M~S, EEROLA T, PITOIS S~G, et~al.
+\newblock Edge computing at sea: High-throughput classification of in-situ
+  plankton imagery for adaptive sampling\allowbreak[J/OL].
+\newblock Frontiers in Marine Science, 2023, 10: 1187771.
+\newblock DOI: \doi{10.3389/fmars.2023.1187771}.
+
+\bibitem[McMahan et~al.(2017)McMahan, Moore, Ramage, Hampson, and Aguera~y
+  Arcas]{mcmahan2017fedavg}
+MCMAHAN B, MOORE E, RAMAGE D, et~al.
+\newblock Communication-efficient learning of deep networks from decentralized
+  data\allowbreak[C]//\allowbreak
+Proceedings of Machine Learning Research: volume~54\quad Proceedings of the
+  20th International Conference on Artificial Intelligence and Statistics.
+\newblock Fort Lauderdale, FL, USA: PMLR, 2017: 1273-1282.
+
+\bibitem[Kairouz et~al.(2021)Kairouz, McMahan, Avent,
+  et~al.]{kairouz2021advances}
+KAIROUZ P, MCMAHAN H~B, AVENT B, et~al.
+\newblock Advances and open problems in federated learning\allowbreak[J/OL].
+\newblock Foundations and Trends in Machine Learning, 2021, 14\allowbreak
+  (1-2): 1-210.
+\newblock DOI: \doi{10.1561/2200000083}.
+
+\bibitem[Yang et~al.(2019)Yang, Liu, Chen, and Tong]{yang2019federated}
+YANG Q, LIU Y, CHEN T, et~al.
+\newblock Federated machine learning: Concept and
+  applications\allowbreak[J/OL].
+\newblock ACM Transactions on Intelligent Systems and Technology, 2019,
+  10\allowbreak (2): 12:1-12:19.
+\newblock DOI: \doi{10.1145/3298981}.
+
+\bibitem[Chen et~al.(2025)Chen, Kyathanahally, Reyes,
+  et~al.]{chen2025datasetshift}
+CHEN C, KYATHANAHALLY S~P, REYES M, et~al.
+\newblock Producing plankton classifiers that are robust to dataset
+  shift\allowbreak[J].
+\newblock Limnology and Oceanography: Methods, 2025, 23: 39-66.
+
+\bibitem[Kareinen et~al.(2025)Kareinen, Skytt{\"a}, Eerola,
+  et~al.]{kareinen2025openset}
+KAREINEN J, SKYTT{\"A} A, EEROLA T, et~al.
+\newblock Open-set plankton recognition\allowbreak[M]//\allowbreak
+Computer Vision -- {ECCV} 2024 Workshops.
+\newblock Cham: Springer, 2025: 168-184.
+
+\bibitem[Han et~al.(2025)Han, He, Xie, et~al.]{han2025benchmarking}
+HAN Y, HE J, XIE C, et~al.
+\newblock Benchmarking out-of-distribution detection for plankton recognition:
+  A systematic evaluation of advanced methods in marine ecological
+  monitoring\allowbreak[C]//\allowbreak
+Proceedings of the IEEE/CVF International Conference on Computer Vision
+  Workshops.
+\newblock IEEE, 2025: 2142-2152.
+
+\bibitem[Liao et~al.(2024)Liao, Liu, Zhou, et~al.]{liao2024foogd}
+LIAO X, LIU W, ZHOU P, et~al.
+\newblock {FOOGD}: Federated collaboration for both out-of-distribution
+  generalization and detection\allowbreak[C]//\allowbreak
+Advances in Neural Information Processing Systems: volume~37.
+\newblock 2024.
+
+\bibitem[Hendrycks et~al.(2017)Hendrycks and Gimpel]{hendrycks2017baseline}
+HENDRYCKS D, GIMPEL K.
+\newblock A baseline for detecting misclassified and out-of-distribution
+  examples in neural networks\allowbreak[C/OL]//\allowbreak
+International Conference on Learning Representations.
+\newblock Toulon, France, 2017\allowbreak[2026-04-01].
+\newblock \url{https://openreview.net/forum?id=Hkg4TI9xl}.
+
+\bibitem[Liu et~al.(2020)Liu, Wang, Owens, and Li]{liu2020energy}
+LIU W, WANG X, OWENS J, et~al.
+\newblock Energy-based out-of-distribution detection\allowbreak[C]//\allowbreak
+Advances in Neural Information Processing Systems: volume~33.
+\newblock Curran Associates, Inc., 2020: 21464-21475.
+
+\bibitem[Wang et~al.(2022)Wang, Li, Feng, and Zhang]{wang2022vim}
+WANG H, LI Z, FENG L, et~al.
+\newblock {ViM}: Out-of-distribution with virtual-logit
+  matching\allowbreak[C/OL]//\allowbreak
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition.
+\newblock New Orleans, LA, USA: IEEE, 2022: 4911-4920.
+\newblock DOI: \doi{10.1109/CVPR52688.2022.00487}.
+
+\bibitem[Fan et~al.(2022)Fan, Ke, Wang, et~al.]{fan2022act}
+FAN J, KE Z~T, WANG K, et~al.
+\newblock Estimating number of factors by adjusted eigenvalues
+  thresholding\allowbreak[J].
+\newblock Journal of the American Statistical Association, 2022, 117\allowbreak
+  (538): 852-861.
+
+\bibitem[Li et~al.(2021)Li, Yang, and Chen]{li2021dybplanktonnet}
+LI J, YANG Z, CHEN T.
+\newblock {DYB-PlanktonNet}\allowbreak[EB/OL].
+\newblock IEEE Dataport, 2021\allowbreak[2026-04-01].
+\newblock \url{https://dx.doi.org/10.21227/875n-f104}.
+
+\end{thebibliography}
