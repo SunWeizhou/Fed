@@ -30,9 +30,9 @@ DISPLAY_MODEL_NAMES_MULTILINE = {
 }
 
 CASE_NOTES = {
-    "mobilenetv3_large": "Lightweight deployment",
-    "resnet101": "Balanced trade-off",
-    "densenet169": "Fixed-k correction",
+    "mobilenetv3_large": "",
+    "resnet101": "",
+    "densenet169": "",
 }
 
 COLORS = {
