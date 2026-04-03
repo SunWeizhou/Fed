@@ -1,0 +1,42 @@
+% !TeX root = ../main.tex
+
+\chapter{附录}
+
+\section{全局协方差重构公式}
+
+设客户端 $i$ 的本地特征为 $\{z_j^{(i)}\}_{j=1}^{n_i}$，则有
+\[
+\begin{aligned}
+S^{(1)} &= \sum_{i=1}^{N}\sum_{j=1}^{n_i} z_j^{(i)}, \\
+S^{(2)} &= \sum_{i=1}^{N}\sum_{j=1}^{n_i} z_j^{(i)}(z_j^{(i)})^\top.
+\end{aligned}
+\]
+
+由此得到
+\[
+\mu_{\text{global}} = \frac{S^{(1)}}{\sum_i n_i},
+\qquad
+\Sigma_{\text{global}} = \frac{S^{(2)}}{\sum_i n_i} - \mu_{\text{global}}\mu_{\text{global}}^\top.
+\]
+
+因此，ViM 所需的全局统计量可以在联邦场景下通过充分统计量无损重构。
+
+\section{五模型完整备份结果}
+
+\begin{table}[htbp]
+  \centering
+  \caption{五模型完整备份结果}
+  \label{tab:appendix-all}
+  \resizebox{\textwidth}{!}{
+  \begin{tabular}{lcccccccccccc}
+    \toprule
+    模型 & ID Acc (\%) & FedViM $k$ & ACT $k$ & 压缩率 & FedViM Near (\%) & ACT Near (\%) & MSP Near (\%) & Energy Near (\%) & FedViM Far (\%) & ACT Far (\%) & MSP Far (\%) & Energy Far (\%) \\
+    \midrule
+    DenseNet169 & 96.50 & 1000 & 99 & 90.1\% & 80.04 & 95.57 & 88.60 & 77.11 & 84.78 & 96.17 & 79.22 & 66.15 \\
+    EfficientNetV2-S & 97.01 & 512 & 69 & 86.5\% & 96.40 & 95.77 & 87.83 & 81.36 & 97.52 & 96.51 & 89.62 & 85.24 \\
+    MobileNetV3-Large & 96.16 & 512 & 89 & 82.6\% & 96.31 & 95.26 & 93.05 & 87.23 & 97.34 & 96.42 & 92.56 & 89.42 \\
+    ResNet101 & 96.22 & 1000 & 143 & 85.7\% & 95.86 & 96.28 & 91.59 & 87.06 & 96.68 & 96.73 & 90.12 & 86.65 \\
+    ResNet50 & 96.53 & 1000 & 141 & 85.9\% & 95.68 & 95.32 & 91.02 & 83.97 & 97.19 & 95.89 & 84.82 & 76.97 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}

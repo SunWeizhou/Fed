@@ -1,0 +1,55 @@
+% !TeX root = ../main.tex
+
+\chapter{实验设计}
+
+\section{数据集、OOD 划分与联邦实验设定}
+
+本文实验基于 Li 等发布于 IEEE Dataport 的 DYB-PlanktonNet 数据集\cite{li2021dybplanktonnet} 和 Han 等\cite{han2025benchmarking} 的工作构建 OOD 检测任务。结合本文研究目标，实验数据被组织为以下四个部分：
+\begin{itemize}
+  \item \texttt{D\_ID\_train}：54 个 ID 类别，共 26034 张图像；
+  \item \texttt{D\_ID\_test}：54 个 ID 类别，共 2939 张图像；
+  \item \texttt{D\_Near\_test}：26 个 Near-OOD 类别，共 1516 张图像；
+  \item \texttt{D\_Far\_test}：12 个 Far-OOD 类别，共 17031 张图像。
+\end{itemize}
+
+其中，\texttt{D\_ID\_train} 用于联邦分类训练与后处理统计量估计，\texttt{D\_ID\_test} 用于评估联邦模型在已知类别上的分类性能，\texttt{D\_Near\_test} 与 \texttt{D\_Far\_test} 分别用于评估模型在相近未知类和明显非目标类上的 OOD 检测能力。Near-OOD 主要由与 ID 浮游生物在形态结构或生态属性上较为接近、但不属于训练目标的类别构成；Far-OOD 则包含鱼卵、鱼尾、气泡以及多类颗粒杂波，更接近真实海洋监测中可能出现的非目标样本。上述划分同时覆盖了“相近未知类”和“明显非目标类”两种更贴近实际部署需求的 OOD 场景。
+
+在训练阶段，本文从 \texttt{D\_ID\_train} 中固定划出 10\% 样本作为服务端验证集，用于 early stopping 和最佳 checkpoint 选择；\texttt{D\_ID\_test}、\texttt{D\_Near\_test} 与 \texttt{D\_Far\_test} 仅用于最终评估，不参与模型训练与模型选择。
+
+为模拟多中心数据协作场景，本文采用 Dirichlet 分布将 \texttt{D\_ID\_train} 划分到 5 个客户端，参数取 $\alpha = 0.1$，以构造高度异构的非独立同分布数据分片。全局训练采用 FedAvg 聚合，客户端参与比例设为 1.0，即每一轮通信均使用全部客户端参与参数更新。正式训练统一设置为 50 个通信轮次，每轮执行 4 个本地 epoch。上述设定旨在在较强数据异构条件下考察联邦分类模型的训练效果，以及后续 FedViM 与 ACT-FedViM 的联邦后处理可行性。
+
+\section{对比方法、模型范围与实现细节}
+
+为考察所提方法在不同网络结构下的适用性，本文选取五个具有代表性的 CNN 模型作为实验对象，包括 DenseNet169、ResNet50、ResNet101、EfficientNetV2-S 和 MobileNetV3-Large。其中，DenseNet169、ResNet50 和 ResNet101 代表较为经典的卷积神经网络结构，EfficientNetV2-S 与 MobileNetV3-Large 则代表兼顾效率与性能的现代轻量化 CNN 结构。通过在不同模型上进行统一比较，可以更全面地评估联邦后处理 OOD 方法的稳定性与适配性。
+
+在方法对照方面，本文比较四类后处理式 OOD 检测方法：MSP、Energy、FedViM 和 ACT-FedViM。其中，MSP 与 Energy 作为经典输出空间后处理基线，用于提供基本参照；FedViM 对应联邦场景下的固定维度 ViM 实现；ACT-FedViM 则在相同联邦统计量和相同分类模型的基础上，仅对主子空间维度 $k$ 的选取方式进行替换，从而考察 ACT 自适应选维对 OOD 检测性能与部署效率的影响。
+
+在训练实现上，五个 CNN 模型采用统一的联邦训练框架。主要配置如下：
+\begin{itemize}
+  \item 全局随机种子设置为 42；
+  \item 通信轮次为 50，每轮本地训练 4 个 epoch；
+  \item 基础学习率设为 0.001；
+  \item 优化器采用带动量的 SGD，动量为 0.9；
+  \item 权重衰减设为 $1\times 10^{-4}$；
+  \item 学习率调度采用 5 轮 warmup 与 cosine decay 相结合的方式。
+\end{itemize}
+
+在后处理评估中，FedViM 采用 fixed-k 设定；ACT-FedViM 仅改变主子空间维度 $k$ 的选择方式，而特征提取器、联邦统计量、ViM 打分方式以及经验 $\alpha$ 校准过程均与 FedViM 保持一致。这样的实验设计可以尽可能减少额外变量的干扰，使比较结果更集中地反映固定选维与自适应选维之间的差异。
+
+\section{评估指标与分析维度}
+
+为全面评估联邦后处理 OOD 检测方法的性能，本文从分类能力、近域拒识能力、远域拒识能力以及后处理轻量化收益四个维度进行分析，并采用如下指标进行衡量。
+
+首先，使用 ID 分类准确率（Accuracy）衡量联邦分类模型在 \texttt{D\_ID\_test} 上的基础识别能力。该指标反映分类模型本身对已知类别的判别效果，是后续 OOD 检测的基础。
+
+其次，使用 Near-OOD AUROC 衡量模型对 \texttt{D\_Near\_test} 中相近未知类别的区分能力。由于 Near-OOD 样本在形态结构上通常与 ID 类别较为接近，因此该指标能够更直接反映方法对细粒度未知类的识别难度。
+
+然后，使用 Far-OOD AUROC 衡量模型对 \texttt{D\_Far\_test} 中明显非目标样本的区分能力。相较于 Near-OOD，Far-OOD 通常与 ID 类别差异更大，因此该指标主要用于评估方法在更宽松 OOD 场景下的整体拒识能力。
+
+最后，为刻画 ACT-FedViM 相对于 fixed-k FedViM 在后处理阶段的压缩效果，本文定义主子空间压缩率为
+\[
+\text{Compression} = 1 - \frac{k_{\text{ACT}}}{k_{\text{fixed}}}.
+\]
+其中，$k_{\text{fixed}}$ 表示 FedViM 中采用的固定主子空间维度，$k_{\text{ACT}}$ 表示 ACT-FedViM 中通过 ACT 自适应确定的主子空间维度。该指标用于衡量自适应选维在降低后处理存储与计算开销方面的潜在收益。
+
+综合而言，Accuracy 用于衡量联邦分类模型的已知类识别能力，Near-OOD AUROC 与 Far-OOD AUROC 分别对应相近未知类与明显非目标样本的拒识能力，而 Compression 则用于刻画 ACT-FedViM 在部署效率方面的附加价值。四类指标共同构成了本文实验结果分析的基本依据。

@@ -1,0 +1,142 @@
+% !TeX root = ../main.tex
+
+\chapter{方法}
+
+\section{问题设定与整体框架}
+
+设共有 $N$ 个客户端，每个客户端对应一个本地数据中心或数据持有单位。客户端 $i$ 持有本地有标签的 ID 训练集
+\[
+\mathcal{D}_i=\{(x_j^{(i)},y_j^{(i)})\}_{j=1}^{n_i},
+\]
+其中，$x_j^{(i)}$ 表示浮游生物图像，$y_j^{(i)}$ 表示对应的 ID 类别标签，$n_i=|\mathcal{D}_i|$ 为客户端 $i$ 的样本数。各客户端之间不共享原始图像。本文关注的任务是：在联邦学习得到的分类模型基础上，通过后处理方式构建 OOD 检测器，使系统能够识别测试样本是否为 OOD 样本。
+
+记联邦训练完成后的全局特征提取器为 $f_\theta(\cdot)$，分类头为 $g_\theta(\cdot)$。对于输入样本 $x$，其特征表示记为
+\[
+z=f_\theta(x).
+\]
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{fedvim_pipeline.png}
+  \caption{FedViM 与 ACT-FedViM 的联邦后处理流程图}
+  \label{fig:pipeline}
+\end{figure}
+
+算法整体框架如图~\ref{fig:pipeline} 所示，可概括为以下三个环节：
+\begin{enumerate}
+  \item 联邦统计量重构：客户端在本地 ID 训练集上计算一阶与二阶特征统计量，服务器据此重构全局特征均值与协方差。
+  \item 主子空间构造：在上述全局统计量基础上，FedViM 采用固定维度 $k$ 构造主子空间，ACT-FedViM 则利用 ACT\cite{fan2022act} 自适应确定 $k$。在主子空间确定后，各客户端进一步计算本地能量项与残差项的标量统计量，服务器聚合得到全局经验校准系数 $\alpha$。
+  \item ViM 分数计算：在得到主子空间、校准系数 $\alpha$ 与特征均值 $\mu$ 后，给定测试样本 $x$，计算其残差和 logit，并利用校准系数 $\alpha$ 加权求和得到最终的 OOD 评分。
+\end{enumerate}
+
+\section{FedViM 与 ACT-FedViM 的构造}
+
+ViM\cite{wang2022vim} 依赖全局特征均值与协方差来描述 ID 分布的特征结构。为在不访问原始图像和逐样本特征的条件下获得这些统计量，客户端 $i$ 在本地 ID 训练集上计算如下充分统计量：
+\[
+\begin{aligned}
+s_i^{(1)} &= \sum_{x\in\mathcal{D}_i} f_\theta(x),\\
+s_i^{(2)} &= \sum_{x\in\mathcal{D}_i} f_\theta(x)f_\theta(x)^\top,\\
+n_i &= |\mathcal{D}_i|.
+\end{aligned}
+\]
+
+服务器对各客户端上传结果进行聚合：
+\[
+\begin{aligned}
+S^{(1)} &= \sum_{i=1}^{N}s_i^{(1)},\\
+S^{(2)} &= \sum_{i=1}^{N}s_i^{(2)},\\
+n &= \sum_{i=1}^{N}n_i.
+\end{aligned}
+\]
+
+由此可得全局特征均值与协方差：
+\[
+\mu_{\text{global}}=\frac{S^{(1)}}{n},
+\qquad
+\Sigma_{\text{global}}=\frac{S^{(2)}}{n}-\mu_{\text{global}}\mu_{\text{global}}^\top.
+\]
+
+上述结果表明，ViM 所需的全局统计量可以通过联邦聚合充分统计量得到，而不需要服务器访问原始图像或样本级特征。基于此，可在联邦场景下复现 ViM 的特征几何结构。
+
+在此基础上，本文首先构造 FedViM。该方法采用固定维度 $k$ 构造 ViM 主子空间。考虑到不同模型的特征维度存在差异，实验中对较低维模型取 $k=512$，对较高维模型取 $k=1000$。在得到协方差矩阵 $\Sigma_{\text{global}}$ 后，对其进行特征分解，并取前 $k$ 个协方差主方向构造主子空间矩阵
+\[
+P\in\mathbb{R}^{D\times k},
+\]
+其中 $D$ 为特征维度。由此得到固定维度版本的联邦 ViM，即 FedViM。
+
+进一步地，本文在相同联邦统计量基础上引入 ACT，以构造 ACT-FedViM，为主子空间维度 $k$ 提供数据驱动的选择依据。具体而言，先将全局协方差矩阵转换为相关矩阵：
+\[
+R=D_\Sigma^{-1/2}\Sigma_{\text{global}}D_\Sigma^{-1/2},
+\]
+其中，$D_\Sigma$ 为由 $\Sigma_{\text{global}}$ 对角元素构成的对角矩阵。对 $R$ 进行特征分解，设其降序特征值为
+\[
+\lambda_1\ge \lambda_2\ge \cdots \ge \lambda_p,
+\]
+其中 $p$ 为特征维度。根据 ACT，定义阈值
+\[
+s=1+\sqrt{\frac{p}{n-1}},
+\]
+并通过离散 Stieltjes 变换对样本特征值进行偏差修正，得到修正特征值 $\lambda_j^C$。最终采用如下规则确定自适应维度：
+\[
+k_{\text{ACT}}=\max\{j:\lambda_j^C>s\}.
+\]
+
+在得到 $k_{\text{ACT}}$ 后，仍对 $\Sigma_{\text{global}}$ 进行主成分分析，并取前 $k_{\text{ACT}}$ 个协方差主方向构造主子空间矩阵
+\[
+P\in\mathbb{R}^{D\times k_{\text{ACT}}}.
+\]
+
+因此，ACT-FedViM 与 FedViM 在主子空间的构造基础上保持一致，区别仅在于前者利用 ACT 自适应确定维度 $k$，而后者采用固定经验设定。
+
+\section{联邦经验校准与 OOD 评分}
+
+给定测试样本 $x$，记其特征为 $z=f_\theta(x)$，分类头输出 logits 为 $g_\theta(x)\in\mathbb{R}^{C}$，其中 $C$ 为 ID 类别数。ViM 的残差项定义为
+\[
+\text{Residual}(x)=\left\|(I-PP^\top)(z-\mu_{\text{global}})\right\|_2.
+\]
+
+能量项定义为
+\[
+\text{Energy}(x)=\log\sum_{c=1}^{C}\exp(g_\theta(x)_c).
+\]
+
+为平衡能量项与残差项的量纲，本文采用经验方式估计校准系数 $\alpha$：
+\[
+\alpha=\frac{\mathbb{E}_{ID}[\text{Energy}(x)]}{\mathbb{E}_{ID}[\text{Residual}(x)]}.
+\]
+
+在联邦场景下，上式中的期望通过客户端本地统计量聚合获得。在主子空间 $P$ 与全局均值 $\mu_{\text{global}}$ 固定后，客户端 $i$ 在本地 ID 训练集上计算
+\[
+S_i^{E}=\sum_{x\in\mathcal{D}_i}\text{Energy}(x),\qquad
+S_i^{R}=\sum_{x\in\mathcal{D}_i}\text{Residual}(x),\qquad
+n_i=|\mathcal{D}_i|.
+\]
+
+服务器聚合得到
+\[
+S^{E}=\sum_{i=1}^{N}S_i^{E},\qquad
+S^{R}=\sum_{i=1}^{N}S_i^{R},\qquad
+n=\sum_{i=1}^{N}n_i.
+\]
+
+于是，
+\[
+\mathbb{E}_{ID}[\text{Energy}(x)]\approx \frac{S^{E}}{n},
+\qquad
+\mathbb{E}_{ID}[\text{Residual}(x)]\approx \frac{S^{R}}{n},
+\]
+从而得到联邦经验校准系数
+\[
+\alpha=\frac{S^{E}/n}{S^{R}/n}.
+\]
+
+最终，定义样本 $x$ 的联合评分为
+\[
+\text{Score}(x)=\text{Energy}(x)-\alpha\cdot \text{Residual}(x).
+\]
+
+当 $\text{Score}(x)$ 较小时，样本更可能偏离 ID 分布，因此更可能是 OOD 样本。由此，FedViM 与 ACT-FedViM 的评分框架保持一致，二者的差异仅在于主子空间矩阵 $P$ 的构造方式不同。
+
+在实际部署中，可在验证集上根据目标假阳性率或目标召回率选取判别阈值 $\tau$。当 $\text{Score}(x)<\tau$ 时，将样本判定为 OOD；否则判定为 ID。
+
+此外，部署阶段需要保存主子空间矩阵 $P\in\mathbb{R}^{D\times k}$，而 ViM 打分中涉及的投影与残差计算复杂度近似为 $O(Dk)$。因此，更小的 $k$ 将直接减少后处理模块的存储开销与计算开销，这也是 ACT-FedViM 相较于 fixed-k FedViM 的一个重要部署优势。

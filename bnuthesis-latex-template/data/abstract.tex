@@ -1,0 +1,26 @@
+% !TeX root = ../main.tex
+
+\begin{abstract}
+
+海洋浮游生物图像监测通常由多个单位分别建设和维护本地数据中心。由于原始图像及其采样元信息可能关联采样海域、设备布放位置、时间节点和任务背景，跨中心直接汇聚原始数据往往受到数据治理和隐私约束。在此类多中心协作场景下，系统不仅需要提升联邦学习模型的分类精度，还需要识别未见类别、鱼卵、鱼尾、气泡和颗粒等非目标样本，即分布外（Out-of-Distribution, OOD）样本。
+
+围绕这一需求，本文提出 FedViM，一种面向多中心海洋浮游生物监测的分布外检测方法。该方法利用各客户端上传的一阶与二阶特征充分统计量，联邦化重构全局样本特征均值与协方差，进而构建 ViM 所需统计量，使得在不共享原始图像和单个样本特征的条件下完成 OOD 检测。本文进一步提出 ACT-FedViM 作为 FedViM 的扩展方法，使用 ACT（Adjusted Correlation Thresholding）机制替代原始 ViM 中的 fixed-k 经验设定，为主子空间维度 $k$ 提供统计驱动的自适应选择。
+
+本文在基于 DYB-PlanktonNet 构建的 OOD 数据划分上，对五个由联邦学习方式训练得到的 CNN 模型进行了评估。实验结果表明，FedViM 与 ACT-FedViM 的整体表现均优于 MSP 与 Energy 基线。FedViM 为多中心海洋浮游生物监测提供了一条可实现的联邦后处理 OOD 检测路径；ACT-FedViM 则在此基础上进一步降低了主子空间维度，在保持良好检测性能的同时提升了部署友好性。
+
+\bnusetup{
+  keywords = {联邦学习, 分布外检测, ViM, ACT, 海洋浮游生物, 图像识别},
+}
+\end{abstract}
+
+\begin{abstract*}
+Plankton image monitoring in the ocean is typically conducted by multiple institutions, each maintaining its own local data center. Because raw images and their associated metadata may reveal sensitive information such as sampling regions, device deployment locations, time stamps, and mission backgrounds, direct cross-center sharing of raw data is often constrained by data governance and privacy requirements. In such multi-center collaborative settings, the system must not only improve the classification accuracy of federated learning models, but also identify unseen categories and non-target samples such as fish eggs, fish tails, bubbles, and particles, namely out-of-distribution (OOD) samples.
+
+To address this need, this thesis proposes FedViM, an OOD detection method for multi-center marine plankton monitoring. By aggregating first- and second-order feature sufficient statistics uploaded from each client, the proposed method reconstructs the global feature mean and covariance, thereby obtaining the statistics required by ViM (Virtual-logit Matching) and enabling OOD detection without sharing raw images or individual sample features. Furthermore, this thesis proposes ACT-FedViM as an extension of FedViM, replacing the fixed-$k$ heuristic in the original ViM with the ACT (Adjusted Correlation Thresholding) mechanism, so as to provide a statistically driven adaptive selection of the principal subspace dimension $k$.
+
+Experiments are conducted on an OOD split constructed from DYB-PlanktonNet, using five CNN backbones trained under a federated learning setting. The results show that both FedViM and ACT-FedViM outperform the MSP and Energy baselines overall. FedViM provides a practical federated post-hoc OOD detection pathway for multi-center marine plankton monitoring, while ACT-FedViM further reduces the principal subspace dimension and improves deployment efficiency while maintaining strong detection performance.
+
+\bnusetup{
+  keywords* = {Federated learning, Out-of-distribution detection, ViM, ACT, Marine plankton, Image recognition},
+}
+\end{abstract*}
