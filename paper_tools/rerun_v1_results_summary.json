@@ -27,25 +27,25 @@
   "method_averages": {
     "FedViM": {
       "method": "FedViM",
-      "id_accuracy": 0.9648179652943177,
-      "near_auroc": 0.9285726213123305,
-      "far_auroc": 0.9470213124760647,
+      "id_accuracy": 0.9628445049336509,
+      "near_auroc": 0.9326522088086608,
+      "far_auroc": 0.9503489273977487,
       "fixed_k": 804.8,
       "act_k": null,
       "compression_rate": null
     },
     "ACT-FedViM": {
       "method": "ACT-FedViM",
-      "id_accuracy": 0.9648179652943177,
-      "near_auroc": 0.9564055316501493,
-      "far_auroc": 0.9634460139925776,
+      "id_accuracy": 0.9628445049336509,
+      "near_auroc": 0.9634357709665575,
+      "far_auroc": 0.9731966100924901,
       "fixed_k": 804.8,
-      "act_k": 108.2,
-      "compression_rate": 0.86168125
+      "act_k": 101.8,
+      "compression_rate": 0.8684625
     },
     "MSP": {
       "method": "MSP",
-      "id_accuracy": 0.9648179652943177,
+      "id_accuracy": 0.9628445049336509,
       "near_auroc": 0.9042043090778997,
       "far_auroc": 0.8726907235527857,
       "fixed_k": null,
@@ -54,7 +54,7 @@
     },
     "Energy": {
       "method": "Energy",
-      "id_accuracy": 0.9648179652943177,
+      "id_accuracy": 0.9628445049336509,
       "near_auroc": 0.8334494214372989,
       "far_auroc": 0.8088605093340089,
       "fixed_k": null,
@@ -63,10 +63,10 @@
     }
   },
   "act_vs_fedvim": {
-    "avg_near_delta": 0.02783291033781885,
-    "avg_far_delta": 0.016424701516512874,
+    "avg_near_delta": 0.03078356215789666,
+    "avg_far_delta": 0.022847682694741422,
     "avg_fixed_k": 804.8,
-    "avg_act_k": 108.2,
-    "avg_compression_rate": 0.86168125
+    "avg_act_k": 101.8,
+    "avg_compression_rate": 0.8684625
   }
 }

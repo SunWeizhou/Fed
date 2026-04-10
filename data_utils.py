@@ -447,6 +447,41 @@ def create_id_train_client_loaders_only(data_root, n_clients=10, alpha=0.1, batc
     return client_loaders
 
 
+def create_id_train_pooled_loader_only(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=224, num_workers=None, partition_seed=None):
+    """
+    Create one pooled ID-train loader using the same 90% train split as federated runs.
+
+    This keeps the sample scope aligned with FedViM:
+    - the same random 90% training subset from D_ID_train
+    - test-time transforms only
+    - no validation samples included
+    """
+    _, test_transform = get_transforms(image_size)
+    train_dataset, _, _ = _create_federated_train_subsets(
+        data_root=data_root,
+        n_clients=n_clients,
+        alpha=alpha,
+        image_size=image_size,
+        partition_seed=partition_seed,
+    )
+
+    base_dataset = PlanktonDataset(data_root, transform=test_transform, mode='train')
+    pooled_dataset = torch.utils.data.Subset(base_dataset, train_dataset.indices)
+    pooled_loader = DataLoader(
+        pooled_dataset,
+        **_build_loader_kwargs(
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            drop_last=False,
+        )
+    )
+
+    print("Pooled ID 训练集加载器创建完成:")
+    print(f"  - 使用与联邦训练一致的训练子集: {len(pooled_dataset)} 样本")
+    return pooled_loader
+
+
 def create_test_loaders_only(data_root, batch_size=32, image_size=224, num_workers=None):
     """
     只创建测试数据加载器（不创建训练数据加载器）

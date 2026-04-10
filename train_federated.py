@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""
-联邦学习训练主脚本。
+"""联邦分类 backbone 训练主脚本。
+
+当前脚本只负责联邦分类训练与 best_model 选择。
+FedViM / ACT-FedViM / Pooled-ViM / Pooled-ACT-ViM 均在训练完成后
+通过专门评估脚本进行后处理，不在训练阶段累计 OOD 统计量。
 """
 
 import os
@@ -13,10 +16,9 @@ import json
 import random  # 确保导入 random
 
 from models import create_model
-from data_utils import create_federated_loaders, create_id_train_client_loaders_only, get_recommended_num_workers
+from data_utils import create_federated_loaders, get_recommended_num_workers
 from client import FLClient
 from server import FLServer
-from utils.subspace_utils import select_vim_paper_k
 
 # 导入配置和早停模块
 from config import TrainingConfig, get_model_config
@@ -70,8 +72,8 @@ def setup_experiment(args):
     return experiment_dir
 
 
-def create_clients(n_clients, model_template, client_loaders, device, model_type='densenet169', alpha_loaders=None, freeze_bn=True, base_lr=0.001, use_fedvim=False, weight_decay=1e-5):
-    """创建客户端。"""
+def create_clients(n_clients, model_template, client_loaders, device, model_type='densenet169', freeze_bn=True, base_lr=0.001, use_fedvim=False, weight_decay=1e-5):
+    """创建客户端，仅用于联邦分类训练。"""
     clients = []
 
     for client_id in range(n_clients):
@@ -84,7 +86,7 @@ def create_clients(n_clients, model_template, client_loaders, device, model_type
             model=client_model,
             train_loader=client_loaders[client_id],
             device=device,
-            alpha_loader=alpha_loaders[client_id] if alpha_loaders is not None else None,
+            alpha_loader=None,
             freeze_bn=freeze_bn,
             base_lr=base_lr,
             use_fedvim=use_fedvim,
@@ -129,13 +131,15 @@ def _evaluate_accuracy(model, data_loader, device):
 def federated_training(args):
     """联邦学习训练主函数 (增强版: 集成 Early Stopping 和配置优化)"""
     print("=" * 70)
-    print("FedViM 联邦训练".center(70))
+    print("联邦分类 Backbone 训练".center(70))
     print("=" * 70)
     print()
 
     # 设置设备
     device = torch.device(args.device)
     print(f"[设备] 使用设备: {device}")
+    if args.use_fedvim:
+        print("[说明] --use_fedvim 仅作为实验配置记录保留；训练阶段不计算任何 OOD 统计量。")
 
     # 设置实验
     experiment_dir = setup_experiment(args)
@@ -158,16 +162,8 @@ def federated_training(args):
         num_workers=args.num_workers,
         partition_seed=args.seed,
     )
-    alpha_client_loaders = create_id_train_client_loaders_only(
-        data_root=args.data_root,
-        n_clients=args.n_clients,
-        alpha=args.alpha,
-        batch_size=args.batch_size,
-        image_size=args.image_size,
-        num_workers=args.num_workers,
-        partition_seed=args.seed,
-    )
     print(f"[数据加载] 完成 - 训练客户端: {len(client_loaders)}, 验证集: OK")
+    print("[数据加载] 说明 - 客户端训练分片仅用于分类训练；OOD 统计量将在后处理评估脚本中重新计算")
 
     # 创建全局模型
     print(f"\n[模型] 创建全局模型: {args.model_type.upper()}")
@@ -241,7 +237,6 @@ def federated_training(args):
     print(f"\n[客户端] 创建 {args.n_clients} 个联邦学习客户端...")
     clients = create_clients(
         args.n_clients, global_model, client_loaders, device, args.model_type,
-        alpha_loaders=alpha_client_loaders,
         freeze_bn=args.freeze_bn,
         base_lr=base_lr,
         use_fedvim=args.use_fedvim,
@@ -271,9 +266,6 @@ def federated_training(args):
     print(f"Early Stopping: 耐心值={early_stopping.patience}, 监控指标=验证集准确率")
     print(f"{'='*70}\n")
 
-    # [新增] 初始化全局统计量容器 (Fed-ViM)
-    global_vim_stats = {'P': None, 'mu': None}
-
     for round_num in range(start_round, args.communication_rounds):
         print(f"\n=== 通信轮次 {round_num + 1}/{args.communication_rounds} ===")
 
@@ -291,7 +283,6 @@ def federated_training(args):
         # 客户端本地训练
         client_updates = []
         client_sample_sizes = []
-        client_vim_stats_list = []  # [新增] 收集本轮统计量
         round_train_loss = 0.0
 
         for client_id in selected_clients:
@@ -300,12 +291,10 @@ def federated_training(args):
             # 设置客户端模型参数
             client.set_generic_parameters(server.get_global_parameters())
 
-            # [修改] 客户端本地训练，传入 global_stats 并接收 client_stats
-            # 注意：client.train_step 现在的返回值变成了 3 个
-            client_update, client_loss, client_stats = client.train_step(
+            client_update, client_loss, _ = client.train_step(
                 local_epochs=args.local_epochs,
                 current_round=round_num,  # 当前轮次
-                global_stats=global_vim_stats,  # 下发 P 和 mu
+                global_stats=None,
                 total_rounds=args.communication_rounds,  # [新增] 传入总轮数参数
                 warmup_rounds=args.warmup_rounds,  # [新增] 传入 warmup 轮数
                 accumulation_steps=args.accumulation_steps  # [新增] 传入梯度累积步数
@@ -314,25 +303,11 @@ def federated_training(args):
             client_updates.append(client_update)
             client_sample_sizes.append(len(client.train_loader.dataset))
             round_train_loss += client_loss
-
-            # [新增] 收集 Fed-ViM 统计量
-            if args.use_fedvim and client_stats is not None:
-                client_vim_stats_list.append(client_stats)
             print(f"  客户端 {client_id}: 本地损失 = {client_loss:.4f}")
 
         # 服务器聚合
         aggregated_params = server.aggregate(client_updates, client_sample_sizes)
         server.set_global_parameters(aggregated_params)
-
-        # [新增] 服务端更新全局子空间 (Fed-ViM)
-        if args.use_fedvim and len(client_vim_stats_list) > 0:
-            feature_dim = client_vim_stats_list[0]['sum_z'].shape[0]
-            paper_k = select_vim_paper_k(feature_dim=feature_dim, num_classes=54)
-            print(f"  [Fixed-K] feature_dim={feature_dim}, num_classes=54, selected k={paper_k}")
-            global_vim_stats = server.update_global_subspace(
-                client_vim_stats_list,
-                k=paper_k,
-            )
 
         # 更新客户端模型 (为下一轮做准备)
         for client in clients:
@@ -392,21 +367,11 @@ def federated_training(args):
 
             client_states = {i: client.model.state_dict() for i, client in enumerate(clients)}
 
-            vim_stats_to_save = None
-            if args.use_fedvim and hasattr(server, 'P_global') and server.P_global is not None:
-                vim_stats_to_save = {
-                    'P': server.P_global.cpu(),
-                    'mu': server.mu_global.cpu() if hasattr(server, 'mu_global') and server.mu_global is not None else torch.zeros(server.P_global.shape[0]),
-                    'sum_z': server.global_sum_z.cpu() if hasattr(server, 'global_sum_z') else None,
-                    'sum_zzT': server.global_sum_zzT.cpu() if hasattr(server, 'global_sum_zzT') else None,
-                    'count': server.global_count if hasattr(server, 'global_count') else None
-                }
-
             torch.save({
                 'round': round_num + 1,
                 'global_model_state_dict': server.global_model.state_dict(),
                 'client_states': client_states,
-                'vim_stats': vim_stats_to_save,
+                'vim_stats': None,
                 'best_acc': best_acc,
                 'config': vars(args)
             }, os.path.join(experiment_dir, "best_model.pth"))
@@ -416,21 +381,11 @@ def federated_training(args):
         if (round_num + 1) % args.save_frequency == 0:
             client_states = {i: client.model.state_dict() for i, client in enumerate(clients)}
 
-            vim_stats_to_save = None
-            if args.use_fedvim and hasattr(server, 'P_global') and server.P_global is not None:
-                vim_stats_to_save = {
-                    'P': server.P_global.cpu(),
-                    'mu': server.mu_global.cpu() if hasattr(server, 'mu_global') and server.mu_global is not None else torch.zeros(server.P_global.shape[0]),
-                    'sum_z': server.global_sum_z.cpu() if hasattr(server, 'global_sum_z') else None,
-                    'sum_zzT': server.global_sum_zzT.cpu() if hasattr(server, 'global_sum_zzT') else None,
-                    'count': server.global_count if hasattr(server, 'global_count') else None
-                }
-
             torch.save({
                 'round': round_num + 1,
                 'global_model_state_dict': server.global_model.state_dict(),
                 'client_states': client_states,
-                'vim_stats': vim_stats_to_save,
+                'vim_stats': None,
                 'training_history': training_history,
                 'early_stopping': {
                     'history': early_stopping.history,
@@ -465,24 +420,11 @@ def federated_training(args):
     final_model_path = os.path.join(experiment_dir, "final_model.pth")
     client_states = {i: client.model.state_dict() for i, client in enumerate(clients)}
 
-    # 保存 ViM 统计量 (如果是 Fed-ViM 模型)
-    vim_stats_to_save = None
-    if args.use_fedvim and hasattr(server, 'P_global') and server.P_global is not None:
-        vim_stats_to_save = {
-            'P': server.P_global.cpu(),
-            'mu': server.mu_global.cpu() if hasattr(server, 'mu_global') and server.mu_global is not None else torch.zeros(server.P_global.shape[0]),
-            'eigenvalues': global_vim_stats.get('eigenvalues').cpu() if global_vim_stats and global_vim_stats.get('eigenvalues') is not None else None,
-            # [新增] 保存完整统计量，供 ACT 后处理使用（无需访问原始数据）
-            'sum_z': server.global_sum_z.cpu() if hasattr(server, 'global_sum_z') else None,
-            'sum_zzT': server.global_sum_zzT.cpu() if hasattr(server, 'global_sum_zzT') else None,
-            'count': server.global_count if hasattr(server, 'global_count') else None
-        }
-
     torch.save({
         'round': args.communication_rounds,
         'global_model_state_dict': server.global_model.state_dict(),
         'client_states': client_states, # [关键] 保存客户端状态
-        'vim_stats': vim_stats_to_save,  # [新增] 保存 ViM 全局统计量
+        'vim_stats': None,
         'training_history': training_history,
         'early_stopping_summary': early_stop_summary,  # [新增] 保存 Early Stopping 摘要
         'config': vars(args)
@@ -498,10 +440,10 @@ def federated_training(args):
     # 绘制训练曲线
     plot_training_curves(training_history, experiment_dir)
     print("\n" + "=" * 60)
-    print("FedViM 训练流程完成")
+    print("联邦分类训练流程完成")
     print("=" * 60)
     print(f"  - 实验目录: {experiment_dir}")
-    print("  - 下一步: 使用 evaluate_fedvim.py / evaluate_act_fedvim.py / evaluate_baselines.py 进行评估")
+    print("  - 下一步: 固定 best_model 后使用 evaluate_fedvim.py / advanced_fedvim.py / evaluate_pooled_vim.py / evaluate_pooled_act_vim.py / evaluate_baselines.py 进行后处理评估")
     print("=" * 60 + "\n")
 
     return training_history
@@ -562,7 +504,7 @@ def main():
                        choices=['densenet169', 'resnet50', 'resnet101', 'mobilenetv3_large', 'efficientnet_v2_s'],
                        help='五模型主线骨干网络类型')
     parser.add_argument('--use_fedvim', action='store_true', default=False,
-                       help='是否使用 Fed-ViM (GSA Loss + PCA)')
+                       help='保留兼容标记；训练阶段仅训练分类 backbone，FedViM/ACT-FedViM 在后处理脚本中评估')
     parser.add_argument('--image_size', type=int, default=224,
                        help='输入图像尺寸')
 

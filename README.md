@@ -45,7 +45,6 @@ python3 train_federated.py \
 - 联邦训练 backbone
 - 保存 `best_model.pth` / `final_model.pth`
 - 保存 `training_history.json`
-- 保存 ViM 所需聚合统计量
 
 训练阶段不再直接运行 OOD 评估。
 
@@ -60,12 +59,26 @@ python3 evaluate_fedvim.py \
 ### 3. 评估 ACT-FedViM
 
 ```bash
-python3 evaluate_act_fedvim.py \
+python3 advanced_fedvim.py \
   --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
   --data_root ./Plankton_OOD_Dataset
 ```
 
-### 4. 评估 MSP / Energy
+### 4. 评估 pooled ViM / pooled ACT-ViM
+
+用于和 `FedViM` / `ACT-FedViM` 做“联邦统计量聚合是否改变 ViM 本身”的对照。
+
+```bash
+python3 evaluate_pooled_vim.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset
+
+python3 evaluate_pooled_act_vim.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset
+```
+
+### 5. 评估 MSP / Energy
 
 ```bash
 python3 evaluate_baselines.py \
@@ -97,9 +110,10 @@ python3 paper_tools/generate_paper_tables.py
 
 - `train_federated.py`：纯训练入口
 - `evaluate_fedvim.py`：`FedViM` fixed-k 评估
-- `evaluate_act_fedvim.py`：`ACT-FedViM` 评估
+- `advanced_fedvim.py`：`ACT-FedViM` 评估
+- `evaluate_pooled_vim.py`：`Pooled-ViM` 评估
+- `evaluate_pooled_act_vim.py`：`Pooled-ACT-ViM` 评估
 - `evaluate_baselines.py`：`MSP` / `Energy`
-- `advanced_fedvim.py`：`ACT-FedViM` 核心实现
 - `run_fedvim_model_pipeline.sh`：单模型训练+评估流水线
 - `paper_tools/collect_paper_results.py`：五模型结果收集
 - `paper_tools/generate_paper_tables.py`：markdown 表格生成

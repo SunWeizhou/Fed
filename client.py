@@ -48,7 +48,7 @@ class FLClient:
         self.client_id = client_id
         self.model = model
         self.train_loader = train_loader
-        self.alpha_loader = alpha_loader if alpha_loader is not None else train_loader
+        self.alpha_loader = alpha_loader
         self.device = device
         self.freeze_bn = freeze_bn
         self.base_lr = base_lr
@@ -112,7 +112,7 @@ class FLClient:
         warmup_rounds=5,
         accumulation_steps=1,
     ):
-        """执行客户端本地训练，并在需要时回传二阶统计量。"""
+        """执行客户端本地训练。OOD 统计量不在训练阶段采集。"""
         warmup_start_lr = 1e-5
         min_lr_ratio = 0.1
         min_lr = self.effective_lr * min_lr_ratio
@@ -144,16 +144,7 @@ class FLClient:
         epoch_log = {"cls": 0.0}
         client_vim_stats = None
 
-        is_last_epoch = lambda epoch: epoch == local_epochs - 1
-
         for epoch in range(local_epochs):
-            compute_stats_this_epoch = self.use_fedvim and is_last_epoch(epoch)
-            if compute_stats_this_epoch:
-                feature_dim = self.model.backbone.feature_dim
-                sum_z = torch.zeros(feature_dim, device=self.device)
-                sum_zzT = torch.zeros(feature_dim, feature_dim, device=self.device)
-                stats_count = 0
-
             self.optimizer_main.zero_grad()
 
             for batch_idx, (data, targets) in enumerate(self.train_loader):
@@ -189,12 +180,6 @@ class FLClient:
                 total_samples += batch_size
                 epoch_log["cls"] += classification_loss.item() * batch_size
 
-                if compute_stats_this_epoch:
-                    with torch.no_grad():
-                        sum_z += features.sum(dim=0)
-                        sum_zzT += torch.matmul(features.T, features)
-                        stats_count += features.size(0)
-
             if len(self.train_loader) % accumulation_steps != 0:
                 self.scaler.unscale_(self.optimizer_main)
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), TrainingConfig.GRAD_CLIP_NORM)
@@ -202,22 +187,18 @@ class FLClient:
                 self.scaler.update()
                 self.optimizer_main.zero_grad()
 
-            if compute_stats_this_epoch:
-                client_vim_stats = {"sum_z": sum_z, "sum_zzT": sum_zzT, "count": stats_count}
-
         if total_samples > 0:
             avg_cls = epoch_log["cls"] / total_samples
             print(f"Client {self.client_id} - Epochs {local_epochs} - Avg Loss: {total_loss / total_samples:.4f} | Cls: {avg_cls:.4f}")
-
-        if self.use_fedvim and client_vim_stats is None:
-            client_vim_stats = self._compute_local_statistics()
 
         avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
         generic_params = self.get_generic_parameters()
         return generic_params, avg_loss, client_vim_stats
 
     def compute_vim_alpha_statistics(self, P, mu):
-        """在客户端本地 ID 训练分片上计算经验 alpha 所需统计量。"""
+        """在客户端本地 ID-train 分片上计算经验 alpha 所需统计量。"""
+        if self.alpha_loader is None:
+            raise ValueError("alpha_loader is required for post-hoc ViM statistics and must point to the client ID-train split.")
         return compute_empirical_alpha_local_stats(
             model=self.model,
             loader=self.alpha_loader,
@@ -261,22 +242,3 @@ class FLClient:
             "loss": total_loss / total_samples if total_samples > 0 else 0.0,
             "acc": correct / total_samples if total_samples > 0 else 0.0,
         }
-
-    def _compute_local_statistics(self):
-        """Fed-ViM: 计算本地二阶统计量。"""
-        self.model.eval()
-        feature_dim = self.model.backbone.feature_dim
-
-        sum_z = torch.zeros(feature_dim, device=self.device)
-        sum_zzT = torch.zeros(feature_dim, feature_dim, device=self.device)
-        count = 0
-
-        with torch.no_grad():
-            for data, _ in self.train_loader:
-                data = data.to(self.device)
-                _, features = self.model(data)
-                sum_z += features.sum(dim=0)
-                sum_zzT += torch.matmul(features.T, features)
-                count += features.size(0)
-
-        return {"sum_z": sum_z, "sum_zzT": sum_zzT, "count": count}

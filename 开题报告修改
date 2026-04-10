@@ -1,0 +1,124 @@
+### 选题依据及研究内容
+
+一、研究背景与意义
+
+***（为什么研究浮游生物监测？）***浮游生物是海洋生态系统中的基础组成部分，其丰度、群落结构和时空分布与营养盐循环、藻华暴发、食物网结构以及海洋生态安全密切相关。对浮游生物进行持续、准确和高效的监测，不仅关系到海洋生态过程的科学认识，也直接服务于海洋环境评估、生态预警和资源管理等实际需求[1]。传统的浮游生物监测方法依赖人工镜检，但其存在成本高、耗时长等缺点，难以满足大规模数据的检测需要。随着图像采集技术与深度学习方法的发展，浮游生物监测正逐步向更加高效、更加自动化的方向发展[2-4]。***（为什么会出现多中心数据协作问题？）***浮游生物图像数据往往由多个科研机构或数据中心分别持有。由于各机构间的数据政策不同，加之采样位置、设备布放等元信息可能具有一定敏感性，使得浮游生物监测需要在数据治理和隐私保护等约束下进行。对于这类多中心协作场景，如何在不直接上传原始图像数据和单个样本特征的前提下利用各中心数据，已经成为需要解决的重要问题。联邦学习通过“数据保留在本地、模型更新在中心间聚合”的方式，为此类多中心协作场景提供了可行方案[5-7]。***（为什么真实场景下还需要 OOD 检测？）***在真实世界的浮游生物监测中，系统面对的不仅仅是已经被标注过的生物类别，还包含在训练集中从未出现过的新物种，或者气泡、碎片等非生物颗粒。如果系统不能将这类分布外（Out-of-Distribution, OOD）样本识别出来，那么将直接影响浮游生物的监测效果。对这类未知样本或非目标样本进行识别的问题，通常可以放在 OOD 检测（Out-of-Distribution Detection）的框架下讨论[8-10]。***（本文关注的核心问题是什么？）***因此，本文关注的核心问题是在多中心数据不能直接共享的情况下，能否在联邦分类模型的基础上，再增加一个后处理 OOD 检测模块，让系统既能做已知类识别，也能识别未知样本。
+
+二、国内外研究现状
+***（浮游生物图像识别研究现状）***海洋浮游生物图像识别已经从低通量的人工镜检逐步发展为自动化分类、高通量分析和边缘部署[2-4]。相关研究一方面关注图像捕捉与分割、流式数据的自动监测流程，另一方面也关注边缘部署、实时监测和海上自适应采样等方向[3-4]。这说明浮游生物图像识别研究正在从实验室中的封闭环境识别问题，逐步转向真实海洋环境中的监测系统部署问题。然而在真实海洋环境中，浮游生物监测系统会面临样本在不同海域之间存在分布偏移、不同成像设备和成像条件存在不一致等问题。与封闭环境相比，更大的差别在于实际采集中还会遇到系统从未见到过的新物种，或者鱼卵、气泡、微粒等非生物颗粒。已有研究已经从数据分布偏移（dataset shift）[8]、开放集识别（open-set recognition）[9] 和分布外（out-of-distribution, OOD）检测[10] 等角度讨论了海洋浮游生物监测系统在真实部署中的失效风险。因此，海洋浮游生物监测系统不只要求具备分类准确性，更重要的是要具备对未知样本的拒识能力，即 OOD 检测能力。
+
+***（联邦学习研究现状）***在多中心海洋浮游生物监测中，系统往往需要在无法直接接触各个数据中心原始图像的条件下运行。McMahan 等在 2017 年提出了 FedAvg 方法，其核心思想是各客户端保留原始数据，仅上传模型参数或参数更新到服务器进行聚合[5]。此后的研究主要围绕如何提高通信效率、如何克服高异质性以及如何提供更好的隐私保护等方面展开[6-7]。现有研究大体可以分为两类：一类主要关注标准联邦分类训练的准确率、收敛性和系统效率[5-6]；另一类则更强调异构场景下的隐私保护、个性化适配和应用部署[7]。***（OOD 检测与 ViM 研究现状）***随着 OOD 问题在真实部署中的重要性不断提高，已有工作也开始关注联邦场景下的 OOD 检测[11]。在联邦场景 OOD 检测研究中，FOOGD 为联邦学习框架增加了生成式学习模块，使系统获得 OOD 检测能力，但同时也带来了较大的计算开销，并且需要重新训练分类模型，难以直接融入现有的多中心浮游生物监测流程中去[11]。相比之下，基于后处理式的 OOD 检测方法凭借轻量化、易部署的特点，更容易适配到多中心联邦框架中[12-14]。
+
+后处理式 OOD 检测方法是基于已经训练好的分类模型，利用其特征层或分类层得到的统计量来构建 OOD 评分[12-14]。现有研究大致可分为两类：一类主要利用模型输出空间信息，另一类主要利用特征空间结构。MSP 是一种利用输出空间信息的经典方法，它利用分类层 softmax 后得到的最大概率值来刻画模型置信度，通过设定阈值来判断样本是否属于 OOD 样本[12]；Energy 则直接利用分类层输出的 logits 构造能量分数，作为判断样本是否是 OOD 的依据[13]。利用特征空间结构的方法则进一步借助分类模型特征层的信息来构建 ID 样本的残差空间，并与 logits 结合构建 OOD 分数。ViM 是这类方法的典型代表，它通过一个校准系数 alpha 将待测样本特征在残差空间中的投影与 logits 结合，刻画待测样本偏离 ID 分布的程度[14]。在海洋浮游生物 OOD benchmark 上，Han 等[10] 对 `22` 种方法进行了统一比较，结果显示 ViM 在该基准上整体表现突出，并在 Far-OOD 场景中优势较为明显[10]。从方法结构上来看，ViM 依赖全局特征均值与协方差，使其能够适配统计量可聚合的联邦学习场景[14]。
+
+ViM 需要通过对样本特征协方差矩阵进行特征值分解来构建主子空间与残差空间[14]。目前的 ViM 在选择主子空间维度时通常依赖人为设定固定维度，这种方式虽然简单，但难以根据数据自适应地选择主子空间维度，模型适应性也会受到限制[14]。同时，当维度取值过大时，部署阶段需要保存的投影矩阵和计算开销都会增大，不利于轻量化部署。在高维统计学领域，Fan 等人提出了 ACT 机制，用于自适应地为高维特征空间提供有效维度选择[15]。这种 ACT 机制为 ViM 主子空间维度的选择提供了统计驱动的选维方式[15]。
+
+
+三、初步设想与研究目标
+
+从已有研究来看，这个问题已经有几个相关基础：浮游生物监测中确实存在未知样本问题，多中心协作也确实需要联邦学习来处理，ViM 给出了后处理 OOD 检测的思路，ACT 则提供了选维方法[5-7][10][14-15]。但目前仍然缺乏一个面向多中心海洋浮游生物监测的分布外检测方法。因此，本文将从联邦学习后处理式的角度进行研究。本文拟将 ViM 联邦化，提出面向多中心海洋浮游生物监测的分布外检测方法 `FedViM`。并在 `FedViM` 的基础上引入 ACT 机制，形成其扩展方法 `ACT-FedViM`，进一步考察数据驱动选维在检测性能和部署开销上的作用。
+
+四、预期成果
+
+1.在原始数据不共享的约束下，提出FedViM：一个面向多中心海洋浮游生物监测的分布外检测的方法。
+
+2.在FedViM的基础上添加ACT机制得到ACT-FedViM。
+
+3.完成MSP、Energy、FedViM和ACT-FedViM在一些深度学习图像识别模型上的OOD检测评估
+
+4.撰写毕业论文
+
+五、可行性论述
+
+本文所涉及得到多中心场景可以在联邦学习的场景下建模，浮游生物的监测和分布外监测的算法已经有诸多国内外的研究，  Li 等发布于 IEEE Dataport 的 `DYB-PlanktonNet` 数据集[16] 提供了实验数据，这为设计出面向多中心海洋浮游生物监测的分布外检测的方法，提供了了坚实的理论和工程参考。同时，经过了四年本科的学习，笔者积累了一定的统计建模与代码实现能力，在通过阅读文献和导师的指导下，能够设计出算法框架，并进行编程实现。
+
+
+
+### 理论和实践意义
+
+一、理论意义
+
+本文针对多中心海洋浮游生物监测的场景进行建模，在原始浮游生物的图像不能共享的约束下，将联邦学习的框架引入该场景，并利用统计学知识，将ViM联邦化，通过将各客户端样本的一阶和二阶统计量上传到中心聚合，重构出了全局样本特征的协方差矩阵。同时，本文将随机矩阵理论中的ACT机制应用于ViM主子空间维度的选择，将高维统计学知识和深度学习算法结合，避免了人为经验的设定，形成了具有统计驱动的ACT-FedViM。为利用统计学知识来改进深度学习算法提供了新的理论参考。
+
+二、实践意义
+
+本文提出的面向多中心海洋浮游生物监测的分布外检测方法可以应用于真实场景中，它能够在原始数据不能共享的约束下，将多个数据中心或科研机构所拥有的已经标注的浮游生物图像利用起来，使已有的浮游生物监测的图像识别模型具备分布外检测能力。本文为开放世界中的海洋浮游生物的监测提供了基于联邦学习的新思路，未来可以进一步地将本文的方法应用与海洋中已经部署的监测节点，在边缘设备上进行更加高效的自动化的浮游生物监测。
+
+### 论文撰写过程中拟采取的方法和手段
+
+本文在算法设计和论文撰写的过程中拟采取文献研究法，对比实验法。具体研究方法如下：
+
+1.文献研究法，通过在谷歌学术、中国知网、Web of Science等多个文献检索平台上搜索浮游生物监测、联邦学习、分布外检测等关键词，阅读、整理相关文献，了解浮游生物监测、联邦学习和分布外检测领域已有的研究思路，梳理出研究脉络，为本文的算法设计做准备。
+
+2.对比实验，采用联邦学习的方式在 `DYB-PlanktonNet` 数据集上对几个主流的深度学习图像识别模型进行训练，然后基于训练好的模型分别采用MSP、Energy、FedViM和ACT-FedViM进行OOD检测能力的评估。对比不同模型在不同检测方法下的检测结果，来评判OOD检测方法的优劣。
+
+### 论文撰写提纲
+
+摘要
+
+关键词
+
+Abstract
+
+Key words
+
+目录
+
+第一章 绪论
+
+1.1 研究背景与意义
+
+1.2 国内外研究现状
+
+1.3 本文主要工作
+
+第二章 方法
+
+2.1 问题设定与总体框架
+
+2.2 FedViM与ACT-FedViM的构造
+
+2.3 联邦经验校准与OOD评分
+
+第三章 实验设计
+
+3.1 数据集、OOD划分与联邦实验设定
+
+3.2对比方法、模型范围与实现细节
+
+3.3 评估指标与分析维度
+
+第四章 实验结果与分析
+
+4.1 总体结果与主要发现
+
+4.2 与MSP、Energy基线的整体比较
+
+4.3 代表模型分析
+
+第五章 结论与展望
+
+参考文献
+
+附录
+
+致谢
+
+### 参考文献
+
+[1] Naselli-Flores L, Padisak J. Ecosystem services provided by marine and freshwater phytoplankton[J]. Hydrobiologia, 2023, 850(12-13): 2691-2706.
+[2] Eerola T, Kareinen J, Pitois S G, et al. Survey of automatic plankton image recognition: challenges, existing solutions and future perspectives[J]. Artificial Intelligence Review, 2024, 57(5): 114.
+[3] Pitois S G, Schmid M S, Eerola T, et al. RAPID: real-time automated plankton identification dashboard using Edge AI at sea[J]. Frontiers in Marine Science, 2025, 11: 1513463.
+[4] Schmid M S, Eerola T, Pitois S G, et al. Edge computing at sea: high-throughput classification of in-situ plankton imagery for adaptive sampling[J]. Frontiers in Marine Science, 2023, 10: 1187771.
+[5] McMahan B, Moore E, Ramage D, et al. Communication-efficient learning of deep networks from decentralized data[C]//Singh A, Zhu J, eds. Proceedings of the 20th International Conference on Artificial Intelligence and Statistics. Fort Lauderdale, FL, USA: PMLR, 2017: 1273-1282.
+[6] Kairouz P, McMahan H B, Avent B, et al. Advances and open problems in federated learning[J]. Foundations and Trends in Machine Learning, 2021, 14(1-2): 1-210.
+[7] Yang Q, Liu Y, Chen T, et al. Federated machine learning: Concept and applications[J]. ACM Transactions on Intelligent Systems and Technology, 2019, 10(2): 12:1-12:19.
+[8] Chen C, Kyathanahally S P, Reyes M, et al. Producing plankton classifiers that are robust to dataset shift[J]. Limnology and Oceanography: Methods, 2025, 23: 39-66.
+[9] Kareinen J, Skyttä A, Eerola T, et al. Open-set plankton recognition[C]//Del Bue A, Leal-Taixe L, eds. Computer Vision - ECCV 2024 Workshops. Cham: Springer, 2025: 168-184.
+[10] Han Y, He J, Xie C, et al. Benchmarking out-of-distribution detection for plankton recognition: a systematic evaluation of advanced methods in marine ecological monitoring[C]//Proceedings of the IEEE/CVF International Conference on Computer Vision Workshops. Piscataway, NJ, USA: IEEE, 2025: 2142-2152.
+[11] Liao X, Liu W, Zhou P, et al. FOOGD: Federated collaboration for both out-of-distribution generalization and detection[C]//Advances in Neural Information Processing Systems. 2024, 37.
+[12] Hendrycks D, Gimpel K. A baseline for detecting misclassified and out-of-distribution examples in neural networks[C/OL]//International Conference on Learning Representations. Toulon, France, 2017[2026-04-01]. https://openreview.net/forum?id=Hkg4TI9xl.
+[13] Liu W, Wang X, Owens J, et al. Energy-based out-of-distribution detection[C]//Advances in Neural Information Processing Systems. Red Hook, NY, USA: Curran Associates, Inc., 2020, 33: 21464-21475.
+[14] Wang H Q, Li Z, Feng L, et al. ViM: Out-of-distribution with virtual-logit matching[C]//Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. New Orleans, LA, USA: IEEE, 2022: 4911-4920.
+[15] Fan J, Ke Y, Wang K, et al. Estimating number of factors by adjusted eigenvalues thresholding[J]. Journal of the American Statistical Association, 2022, 117(538): 852-861.
+[16] Li J, Yang Z, Chen T. DYB-PlanktonNet[DB/OL]. IEEE Dataport, 2021[2026-04-01]. https://dx.doi.org/10.21227/875n-f104.

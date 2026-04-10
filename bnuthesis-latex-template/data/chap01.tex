@@ -31,7 +31,7 @@
 \begin{enumerate}
   \item 面向多中心海洋浮游生物监测场景，将 ViM 引入联邦学习框架，提出了 FedViM。各客户端仅上传一阶与二阶特征充分统计量，服务器据此完成全局均值与协方差重构，在不共享原始图像和单个样本特征的条件下获得 ViM 所需的全局统计量。
   \item 针对 FedViM 主子空间维度的选择问题，提出了 ACT-FedViM 方法，用统计驱动的方式代替固定的维度选择，在保持 OOD 检测性能的同时进一步压缩主子空间维度，增强对不同分类模型的适应性。
-  \item 在五个 CNN 模型上对 MSP、Energy、FedViM 和 ACT-FedViM 的 OOD 检测性能进行了系统评估。
+  \item 在五个 CNN 模型上对 MSP、Energy、FedViM 和 ACT-FedViM 的 OOD 检测性能进行了系统评估。实验表明，ACT-FedViM 在保持或提升 OOD 检测性能的同时，将主子空间维度平均压缩 86.2\%。
 \end{enumerate}
 
 全文结构如下：第 2 章给出 FedViM 与 ACT-FedViM 的方法设计；第 3 章介绍数据集、联邦设置、实现细节与评估指标；第 4 章展示五个 CNN 模型上的实验结果，并对 FedViM 与 ACT-FedViM 的性能进行分析；第 5 章给出全文结论，并讨论当前工作的局限与后续研究方向。

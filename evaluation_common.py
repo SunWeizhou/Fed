@@ -10,7 +10,7 @@ from typing import Any
 
 import torch
 
-from data_utils import create_id_train_client_loaders_only
+from data_utils import create_id_train_client_loaders_only, create_id_train_pooled_loader_only
 from models import Backbone, FedAvg_Model
 from utils.ood_utils import (
     aggregate_empirical_alpha_statistics,
@@ -124,8 +124,30 @@ def load_empirical_alpha_loaders(
     )
 
 
+def load_pooled_train_loader(
+    config: dict[str, Any],
+    data_root: str,
+    batch_size: int,
+    image_size: int,
+    num_workers: int,
+):
+    """Create one pooled ID-train loader aligned with the federated train split."""
+    return create_id_train_pooled_loader_only(
+        data_root=data_root,
+        n_clients=int(config.get("n_clients", 5)),
+        alpha=float(config.get("alpha", 0.1)),
+        batch_size=batch_size,
+        image_size=image_size,
+        num_workers=num_workers,
+        partition_seed=config.get("seed", 42),
+    )
+
+
 def calibrate_empirical_alpha(model, loaders, P: torch.Tensor, mu: torch.Tensor, device: torch.device) -> tuple[float, float, float]:
     """Aggregate client-local alpha statistics for a given subspace."""
+    if not isinstance(loaders, (list, tuple)):
+        loaders = [loaders]
+
     local_stats = [
         compute_empirical_alpha_local_stats(
             model=model,
@@ -137,6 +159,80 @@ def calibrate_empirical_alpha(model, loaders, P: torch.Tensor, mu: torch.Tensor,
         for loader in loaders
     ]
     return aggregate_empirical_alpha_statistics(local_stats)
+
+
+def compute_loader_feature_statistics(model, loader, device: torch.device) -> dict[str, Any]:
+    """Compute pooled first- and second-order feature sufficient statistics for one loader."""
+    if not hasattr(model, "backbone") or not hasattr(model.backbone, "feature_dim"):
+        raise ValueError("Model does not expose backbone.feature_dim required for ViM statistics.")
+
+    feature_dim = int(model.backbone.feature_dim)
+    sum_z = torch.zeros(feature_dim, device=device)
+    sum_zzT = torch.zeros(feature_dim, feature_dim, device=device)
+    total_count = 0
+
+    was_training = model.training
+    model.eval()
+
+    with torch.no_grad():
+        for images, _ in loader:
+            images = images.to(device, non_blocking=True)
+            _, features = model(images)
+            sum_z += features.sum(dim=0)
+            sum_zzT += torch.matmul(features.T, features)
+            total_count += images.size(0)
+
+    if was_training:
+        model.train()
+
+    if total_count == 0:
+        raise ValueError("No samples were available for pooled feature statistics.")
+
+    mu = sum_z / total_count
+    cov = sum_zzT / total_count - torch.outer(mu, mu)
+    cov = cov + torch.eye(feature_dim, device=device) * 1e-6
+
+    return {
+        "mu": mu,
+        "cov": cov,
+        "sum_z": sum_z,
+        "sum_zzT": sum_zzT,
+        "count": int(total_count),
+    }
+
+
+def aggregate_feature_statistics_from_loaders(model, loaders, device: torch.device) -> dict[str, Any]:
+    """Aggregate sufficient statistics from one or more client ID-train loaders."""
+    if not isinstance(loaders, (list, tuple)):
+        loaders = [loaders]
+
+    total_sum_z = None
+    total_sum_zzT = None
+    total_count = 0
+
+    for loader in loaders:
+        stats = compute_loader_feature_statistics(model, loader, device)
+        if total_sum_z is None:
+            total_sum_z = torch.zeros_like(stats["sum_z"])
+            total_sum_zzT = torch.zeros_like(stats["sum_zzT"])
+        total_sum_z += stats["sum_z"]
+        total_sum_zzT += stats["sum_zzT"]
+        total_count += int(stats["count"])
+
+    if total_sum_z is None or total_sum_zzT is None or total_count == 0:
+        raise ValueError("No ID-train samples were available for feature-statistics aggregation.")
+
+    mu = total_sum_z / total_count
+    cov = total_sum_zzT / total_count - torch.outer(mu, mu)
+    cov = cov + torch.eye(cov.shape[0], device=device) * 1e-6
+
+    return {
+        "mu": mu,
+        "cov": cov,
+        "sum_z": total_sum_z,
+        "sum_zzT": total_sum_zzT,
+        "count": int(total_count),
+    }
 
 
 def result_output_dir(checkpoint_dir: Path, output_dir: str | None) -> Path:

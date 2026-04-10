@@ -23,5 +23,8 @@
 \contentsline {chapter}{\numberline {附录 A}附录}{19}{appendix.A}%
 \contentsline {section}{\numberline {A.1}全局协方差重构公式}{19}{section.A.1}%
 \contentsline {section}{\numberline {A.2}五模型完整备份结果}{19}{section.A.2}%
-\contentsline {chapter}{致\hskip 2em\relax 谢}{20}{section*.23}%
+\contentsline {section}{\numberline {A.3}核心算法实现代码}{19}{section.A.3}%
+\contentsline {subsection}{\numberline {A.3.1}\texttt {evaluate\_fedvim.py}}{19}{subsection.A.3.1}%
+\contentsline {subsection}{\numberline {A.3.2}\texttt {advanced\_fedvim.py}}{22}{subsection.A.3.2}%
+\contentsline {chapter}{致\hskip 2em\relax 谢}{27}{section*.23}%
 \contentsfinish 
