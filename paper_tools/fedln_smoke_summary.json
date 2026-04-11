@@ -1,0 +1,36 @@
+{
+  "experiment_count": 1,
+  "models": [
+    "resnet50"
+  ],
+  "per_model": {
+    "resnet50": {
+      "method": "FedLN",
+      "thesis_title": "FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究",
+      "checkpoint": "/home/dell7960/桌面/FedOOD/experiments/fedln_smoke/resnet50/experiment_20260411_143239/best_model.pth",
+      "model_type": "resnet50",
+      "image_size": 320,
+      "num_classes": 54,
+      "feature_dim": 2048,
+      "id_accuracy": 0.3511398434841783,
+      "near_auroc": 0.6288574587411043,
+      "near_aupr": 0.4421009403192725,
+      "near_fpr95": 0.8353181354202109,
+      "far_auroc": 0.6808361926889958,
+      "far_aupr": 0.9179519896683332,
+      "far_fpr95": 0.8489282068730861,
+      "evaluation_score": "msp",
+      "n_clients": 5,
+      "alpha": 0.1,
+      "communication_rounds": 2,
+      "local_epochs": 1,
+      "temperature": 0.01,
+      "generator_type": null,
+      "dirichlet_alpha": 0.1,
+      "result_scope": "supplemental_fedln_baseline",
+      "notes": "Thesis-oriented federated LogitNorm baseline under the FedViM protocol.",
+      "timestamp": "2026-04-11 14:37:47",
+      "source_file": "/home/dell7960/桌面/FedOOD/experiments/fedln_smoke/resnet50/experiment_20260411_143239/fedln_results.json"
+    }
+  }
+}
