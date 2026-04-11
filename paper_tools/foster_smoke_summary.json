@@ -1,0 +1,36 @@
+{
+  "experiment_count": 1,
+  "models": [
+    "resnet50"
+  ],
+  "per_model": {
+    "resnet50": {
+      "method": "FOSTER",
+      "thesis_title": "FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究",
+      "checkpoint": "/home/dell7960/桌面/FedOOD/experiments/foster_smoke/resnet50/experiment_20260410_182217/best_model.pth",
+      "model_type": "resnet50",
+      "image_size": 320,
+      "num_classes": 54,
+      "feature_dim": 2048,
+      "id_accuracy": 0.368832936372916,
+      "near_auroc": 0.6604775330578401,
+      "near_aupr": 0.45091443674758835,
+      "near_fpr95": 0.902347737325621,
+      "far_auroc": 0.6654433005689903,
+      "far_aupr": 0.9152746040398771,
+      "far_fpr95": 0.9370534195304525,
+      "evaluation_score": "msp",
+      "n_clients": 5,
+      "alpha": 0.1,
+      "communication_rounds": 2,
+      "local_epochs": 1,
+      "loss_weight": 0.1,
+      "generator_type": "class_conditional_feature_generator",
+      "dirichlet_alpha": 0.1,
+      "result_scope": "supplemental_foster_baseline",
+      "notes": "Thesis-oriented FOSTER adaptation with a central class-conditional feature generator.",
+      "timestamp": "2026-04-10 18:27:51",
+      "source_file": "/home/dell7960/桌面/FedOOD/experiments/foster_smoke/resnet50/experiment_20260410_182217/foster_results.json"
+    }
+  }
+}

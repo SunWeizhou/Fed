@@ -125,3 +125,26 @@ python3 paper_tools/generate_paper_tables.py
 - 非论文主线的旧方法、旧实验、机器专用脚本和 handover 文档已移到本地 `archive/`。
 - `archive/` 已加入 `.gitignore`，整理工作区或上传 GitHub 时不会一起提交。
 - 当前正式论文口径是 `FedViM + empirical alpha`，`ACT-FedViM` 作为后处理自适应选维扩展。
+
+## FOSTER Baseline
+
+`FOSTER` 在本仓库中作为独立的补充 baseline 保留，不属于当前 `FedViM` 主训练/评估流水线。
+
+- 独立训练入口：`train_foster.py`
+- 独立评估入口：`evaluate_foster.py`
+- 独立结果汇总：`paper_tools/collect_foster_results.py`
+- 说明文档：`docs/foster_baseline_notes.md`
+
+示例命令：
+
+```bash
+python3 train_foster.py \
+  --model_type resnet50 \
+  --data_root ./Plankton_OOD_Dataset \
+  --device cuda:0
+
+python3 evaluate_foster.py \
+  --checkpoint ./experiments/foster_v1/resnet50/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset \
+  --evaluation_score msp
+```
