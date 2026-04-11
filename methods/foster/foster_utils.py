@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import random
 from datetime import datetime
 from pathlib import Path
@@ -11,9 +10,8 @@ from typing import Any
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
-from data_utils import PlanktonDataset, _build_loader_kwargs, get_transforms, partition_data
+from data_utils import create_federated_loaders
 
 def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
@@ -125,17 +123,6 @@ def should_enable_amp(device: torch.device) -> bool:
     return device.type == "cuda"
 
 
-def canonicalize_dataset_order(dataset) -> None:
-    """Sort cached dataset entries by path to remove filesystem-order drift."""
-    if not hasattr(dataset, "image_paths") or not hasattr(dataset, "labels"):
-        return
-    pairs = sorted(zip(dataset.image_paths, dataset.labels), key=lambda item: item[0])
-    if not pairs:
-        return
-    dataset.image_paths = [path for path, _ in pairs]
-    dataset.labels = [label for _, label in pairs]
-
-
 def create_foster_federated_loaders(
     data_root: str,
     n_clients: int,
@@ -145,71 +132,13 @@ def create_foster_federated_loaders(
     num_workers: int,
     partition_seed: int,
 ):
-    """Create deterministic FOSTER loaders without relying on cache insertion order."""
-    train_transform, test_transform = get_transforms(image_size)
-
-    full_train_dataset = PlanktonDataset(data_root, transform=train_transform, mode="train")
-    canonicalize_dataset_order(full_train_dataset)
-
-    total_len = len(full_train_dataset)
-    val_len = int(total_len * 0.1)
-    train_len = total_len - val_len
-
-    train_dataset, val_dataset_raw = torch.utils.data.random_split(
-        full_train_dataset,
-        [train_len, val_len],
-        generator=torch.Generator().manual_seed(42),
+    """Thin wrapper that keeps FOSTER on the same canonical split as the mainline."""
+    return create_federated_loaders(
+        data_root=data_root,
+        n_clients=n_clients,
+        alpha=alpha,
+        batch_size=batch_size,
+        image_size=image_size,
+        num_workers=num_workers,
+        partition_seed=partition_seed,
     )
-
-    val_dataset = PlanktonDataset(data_root, transform=test_transform, mode="train")
-    canonicalize_dataset_order(val_dataset)
-    val_dataset = torch.utils.data.Subset(val_dataset, val_dataset_raw.indices)
-
-    client_indices = partition_data(train_dataset, n_clients=n_clients, alpha=alpha, seed=partition_seed)
-    client_loaders = []
-    for client_id in range(n_clients):
-        client_dataset = torch.utils.data.Subset(train_dataset, client_indices[client_id])
-        client_loader = DataLoader(
-            client_dataset,
-            **_build_loader_kwargs(
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=num_workers,
-                drop_last=False,
-            ),
-        )
-        client_loaders.append(client_loader)
-        print(f"客户端 {client_id}: {len(client_dataset)} 样本")
-
-    test_dataset = PlanktonDataset(data_root, transform=test_transform, mode="test")
-    near_dataset = PlanktonDataset(data_root, transform=test_transform, mode="near_ood")
-    far_dataset = PlanktonDataset(data_root, transform=test_transform, mode="far_ood")
-    canonicalize_dataset_order(test_dataset)
-    canonicalize_dataset_order(near_dataset)
-    canonicalize_dataset_order(far_dataset)
-
-    test_loader = DataLoader(
-        test_dataset,
-        **_build_loader_kwargs(batch_size=batch_size, shuffle=False, num_workers=num_workers),
-    )
-    near_loader = DataLoader(
-        near_dataset,
-        **_build_loader_kwargs(batch_size=batch_size, shuffle=False, num_workers=num_workers),
-    )
-    far_loader = DataLoader(
-        far_dataset,
-        **_build_loader_kwargs(batch_size=batch_size, shuffle=False, num_workers=num_workers),
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        **_build_loader_kwargs(batch_size=batch_size, shuffle=False, num_workers=num_workers),
-    )
-
-    print("FOSTER 确定性联邦数据加载器创建完成:")
-    print(f"  - 客户端数量: {len(client_loaders)}")
-    print(f"  - 训练集 (联邦): {len(train_dataset)} 样本")
-    print(f"  - 验证集 (服务端): {len(val_dataset)} 样本")
-    print(f"  - 测试集: {len(test_dataset)} 样本")
-    print(f"  - Near-OOD: {len(near_dataset)} 样本")
-    print(f"  - Far-OOD: {len(far_dataset)} 样本")
-    return client_loaders, test_loader, near_loader, far_loader, val_loader

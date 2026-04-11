@@ -8,6 +8,7 @@ import argparse
 import torch
 
 from config import TrainingConfig, get_model_config
+from data_utils import get_split_manifest_path
 from early_stopping import EarlyStoppingMonitor
 from methods.foster.foster_utils import (
     evaluate_accuracy,
@@ -107,6 +108,7 @@ def main() -> None:
         "result_scope": "supplemental_foogd_baseline",
         "notes": "Thesis-oriented FOOGD adaptation with official score-model and Fourier-pair logic.",
         "evaluation_score_default": "sm",
+        "split_manifest": get_split_manifest_path(args.n_clients, args.alpha, args.seed),
     }
     save_json(experiment_dir / "config.json", config_payload)
 
@@ -115,6 +117,7 @@ def main() -> None:
     print("=" * 72)
     print(f"[Device] {device}")
     print(f"[Output] {experiment_dir}")
+    print(f"[Split] {config_payload['split_manifest']}")
 
     global_model = create_model(model_type=args.model_type, num_classes=54).to(device)
     feature_dim = int(global_model.feature_dim)

@@ -16,7 +16,7 @@ import json
 import random  # 确保导入 random
 
 from models import create_model
-from data_utils import create_federated_loaders, get_recommended_num_workers
+from data_utils import create_federated_loaders, get_recommended_num_workers, get_split_manifest_path
 from client import FLClient
 from server import FLServer
 
@@ -66,8 +66,10 @@ def setup_experiment(args):
 
     # 保存实验配置
     config_path = os.path.join(experiment_dir, "config.json")
+    config_payload = dict(vars(args))
+    config_payload["split_manifest"] = args.split_manifest
     with open(config_path, 'w') as f:
-        json.dump(vars(args), f, indent=2)
+        json.dump(config_payload, f, indent=2)
 
     return experiment_dir
 
@@ -144,6 +146,7 @@ def federated_training(args):
     # 设置实验
     experiment_dir = setup_experiment(args)
     print(f"[输出] 实验目录: {experiment_dir}")
+    print(f"[分片] 固定分片文件: {args.split_manifest}")
 
     # 获取模型推荐配置
     model_config = get_model_config(args.model_type)
@@ -505,7 +508,7 @@ def main():
                        help='五模型主线骨干网络类型')
     parser.add_argument('--use_fedvim', action='store_true', default=False,
                        help='保留兼容标记；训练阶段仅训练分类 backbone，FedViM/ACT-FedViM 在后处理脚本中评估')
-    parser.add_argument('--image_size', type=int, default=224,
+    parser.add_argument('--image_size', type=int, default=320,
                        help='输入图像尺寸')
 
     # 保存
@@ -534,6 +537,7 @@ def main():
                        help='DataLoader worker 数。默认根据 CPU 核心数自动设置。')
 
     args = parser.parse_args()
+    args.split_manifest = get_split_manifest_path(args.n_clients, args.alpha, args.seed)
 
     # [优化] 根据模型类型自动设置默认参数（使用 config.py）
     model_config = get_model_config(args.model_type)

@@ -9,7 +9,7 @@ from pathlib import Path
 import torch
 
 from config import ModelConfig, TrainingConfig, get_model_config
-from data_utils import create_federated_loaders, get_recommended_num_workers
+from data_utils import create_federated_loaders, get_recommended_num_workers, get_split_manifest_path
 from early_stopping import EarlyStoppingMonitor
 from methods.foster import FOSTERClient, FOSTERServer
 from methods.foster.foster_config import get_foster_defaults
@@ -83,6 +83,7 @@ def main() -> None:
         "momentum": 0.9,
         "result_scope": "supplemental_foster_baseline",
         "notes": "Thesis-oriented FOSTER adaptation with a central class-conditional feature generator.",
+        "split_manifest": get_split_manifest_path(args.n_clients, args.alpha, args.seed),
     }
     save_json(experiment_dir / "config.json", config_payload)
 
@@ -91,6 +92,7 @@ def main() -> None:
     print("=" * 72)
     print(f"[Device] {device}")
     print(f"[Output] {experiment_dir}")
+    print(f"[Split] {config_payload['split_manifest']}")
 
     global_model = create_model(model_type=args.model_type, num_classes=54).to(device)
     feature_dim = int(global_model.feature_dim)

@@ -8,10 +8,9 @@ import argparse
 import torch
 
 from config import TrainingConfig, get_model_config
-from data_utils import create_federated_loaders, get_recommended_num_workers
+from data_utils import create_federated_loaders, get_recommended_num_workers, get_split_manifest_path
 from early_stopping import EarlyStoppingMonitor
 from methods.fedln import FedLNClient, FedLNServer
-from methods.foster.foster_config import get_foster_defaults
 from methods.foster.foster_utils import (
     build_checkpoint_payload,
     evaluate_accuracy,
@@ -71,6 +70,7 @@ def main() -> None:
         "result_scope": "supplemental_fedln_baseline",
         "notes": "Thesis-oriented federated LogitNorm baseline under the FedViM protocol.",
         "evaluation_score_default": "msp",
+        "split_manifest": get_split_manifest_path(args.n_clients, args.alpha, args.seed),
     }
     save_json(experiment_dir / "config.json", config_payload)
 
@@ -79,6 +79,7 @@ def main() -> None:
     print("=" * 72)
     print(f"[Device] {device}")
     print(f"[Output] {experiment_dir}")
+    print(f"[Split] {config_payload['split_manifest']}")
 
     global_model = create_model(model_type=args.model_type, num_classes=54).to(device)
     base_lr = config_payload["base_lr"]
@@ -133,8 +134,6 @@ def main() -> None:
     global_state = server.global_state()
     best_model_path = experiment_dir / "best_model.pth"
     final_model_path = experiment_dir / "final_model.pth"
-    foster_defaults = get_foster_defaults()
-
     for round_idx in range(args.communication_rounds):
         print(f"\n[Round {round_idx + 1}/{args.communication_rounds}]")
         server.load_global_state(global_state)
@@ -148,8 +147,8 @@ def main() -> None:
                 current_round=round_idx,
                 total_rounds=args.communication_rounds,
                 local_epochs=args.local_epochs,
-                warmup_rounds=foster_defaults["warmup_rounds"],
-                min_lr_factor=foster_defaults["min_lr_factor"],
+                warmup_rounds=TrainingConfig.WARMUP_ROUNDS,
+                min_lr_factor=TrainingConfig.MIN_LR_FACTOR,
             )
             updates.append(updated_state)
             sample_sizes.append(client.sample_count)

@@ -8,6 +8,7 @@
 """
 
 import os
+import json
 import numpy as np
 import torch
 import pickle
@@ -53,6 +54,109 @@ FAR_OOD_CLASSES = [
 
 
 # data_utils.py
+DATA_CACHE_FORMAT_VERSION = 2
+SPLIT_MANIFEST_VERSION = 1
+CANONICAL_TRAIN_VAL_SEED = 42
+
+
+def _splits_dir():
+    """Canonical split manifests stored in-repo for cross-machine reuse."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "splits")
+
+
+def _default_split_manifest_path(n_clients, alpha, partition_seed):
+    seed_str = "none" if partition_seed is None else str(partition_seed)
+    filename = f"canonical_split_seed{seed_str}_alpha{alpha}_nclients{n_clients}.json"
+    return os.path.join(_splits_dir(), filename)
+
+
+def get_split_manifest_path(n_clients, alpha, partition_seed):
+    """Public helper for recording the canonical split file used by an experiment."""
+    return _default_split_manifest_path(n_clients=n_clients, alpha=alpha, partition_seed=partition_seed)
+
+
+def _build_client_class_distribution(client_indices_full, labels):
+    distribution = []
+    for client_full_indices in client_indices_full:
+        per_client = [0] * len(ID_CLASSES)
+        for full_idx in client_full_indices:
+            label = int(labels[full_idx])
+            if label != -1:
+                per_client[label] += 1
+        distribution.append(per_client)
+    return distribution
+
+
+def _save_split_manifest(manifest_path, manifest_payload):
+    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest_payload, f, ensure_ascii=False, indent=2)
+
+
+def _generate_split_manifest(data_root, n_clients, alpha, image_size, partition_seed, manifest_path):
+    """Generate one canonical split file that every machine can reuse verbatim."""
+    train_transform, _ = get_transforms(image_size)
+    full_train_dataset = PlanktonDataset(data_root, transform=train_transform, mode='train')
+
+    total_len = len(full_train_dataset)
+    val_len = int(total_len * 0.1)
+    train_len = total_len - val_len
+
+    train_dataset, val_dataset_raw = torch.utils.data.random_split(
+        full_train_dataset, [train_len, val_len],
+        generator=torch.Generator().manual_seed(CANONICAL_TRAIN_VAL_SEED)
+    )
+
+    train_indices_full = [int(idx) for idx in train_dataset.indices]
+    val_indices_full = [int(idx) for idx in val_dataset_raw.indices]
+    client_indices_rel = partition_data(train_dataset, n_clients=n_clients, alpha=alpha, seed=partition_seed)
+    client_indices_full = [
+        [train_indices_full[int(rel_idx)] for rel_idx in client_rel_indices]
+        for client_rel_indices in client_indices_rel
+    ]
+
+    manifest_payload = {
+        "manifest_version": SPLIT_MANIFEST_VERSION,
+        "split_name": os.path.basename(manifest_path),
+        "data_root_basename": os.path.basename(os.path.abspath(data_root)),
+        "n_clients": int(n_clients),
+        "alpha": float(alpha),
+        "partition_seed": None if partition_seed is None else int(partition_seed),
+        "train_val_seed": CANONICAL_TRAIN_VAL_SEED,
+        "train_indices": train_indices_full,
+        "val_indices": val_indices_full,
+        "client_indices": client_indices_full,
+        "client_sample_counts": [len(indices) for indices in client_indices_full],
+        "client_class_distribution": _build_client_class_distribution(client_indices_full, full_train_dataset.labels),
+        "created_at": datetime.now().isoformat(),
+    }
+    _save_split_manifest(manifest_path, manifest_payload)
+    print(f"[split] 已生成固定分片文件: {manifest_path}")
+    return manifest_payload
+
+
+def _load_or_create_split_manifest(data_root, n_clients, alpha, image_size, partition_seed):
+    manifest_path = _default_split_manifest_path(n_clients=n_clients, alpha=alpha, partition_seed=partition_seed)
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest_payload = json.load(f)
+        if (
+            manifest_payload.get("manifest_version") == SPLIT_MANIFEST_VERSION
+            and int(manifest_payload.get("n_clients", -1)) == int(n_clients)
+            and float(manifest_payload.get("alpha", -1.0)) == float(alpha)
+            and manifest_payload.get("partition_seed") == (None if partition_seed is None else int(partition_seed))
+        ):
+            print(f"[split] 使用固定分片文件: {manifest_path}")
+            return manifest_payload
+        print(f"[split] 分片文件版本或配置不匹配，重新生成: {manifest_path}")
+    return _generate_split_manifest(
+        data_root=data_root,
+        n_clients=n_clients,
+        alpha=alpha,
+        image_size=image_size,
+        partition_seed=partition_seed,
+        manifest_path=manifest_path,
+    )
 
 class PlanktonDataset(Dataset):
     """浮游生物数据集类 - 支持缓存加速"""
@@ -108,25 +212,25 @@ class PlanktonDataset(Dataset):
             with open(cache_file, 'rb') as f:
                 cache_data = pickle.load(f)
 
-            # 【关键新增】: 简单的校验机制
-            # 检查缓存里的路径是否真的存在？(抽查第一个和最后一个)
-            if len(cache_data['paths']) > 0 and \
-               os.path.exists(cache_data['paths'][0]) and \
-               os.path.exists(cache_data['paths'][-1]):
+            cache_version_ok = cache_data.get('cache_format_version') == DATA_CACHE_FORMAT_VERSION
+            cache_paths = cache_data.get('paths', [])
+            if cache_version_ok and len(cache_paths) > 0 and \
+               os.path.exists(cache_paths[0]) and \
+               os.path.exists(cache_paths[-1]):
 
-                self.image_paths = cache_data['paths']
+                self.image_paths = cache_paths
                 self.labels = cache_data['labels']
                 use_cache = True
                 print(f"[{mode}] 缓存校验通过，已加载 {len(self.image_paths)} 张图片。")
             else:
-                print(f"[{mode}] 缓存文件似乎已过期（路径不存在），将重新扫描...")
+                print(f"[{mode}] 缓存文件版本或路径已失效，将重新扫描...")
                 use_cache = False
 
         if not use_cache:
             # 未命中缓存：执行原来的扫描逻辑
             print(f"[{mode}] 扫描文件 (这可能需要一些时间)...")
             if os.path.exists(data_dir):
-                for dir_name in os.listdir(data_dir):
+                for dir_name in sorted(os.listdir(data_dir)):
                     class_dir = os.path.join(data_dir, dir_name)
                     if not os.path.isdir(class_dir):
                         continue
@@ -142,7 +246,7 @@ class PlanktonDataset(Dataset):
                         current_label = -1
 
                     # 加载图片
-                    for img_name in os.listdir(class_dir):
+                    for img_name in sorted(os.listdir(class_dir)):
                         if img_name.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif')):
                             img_path = os.path.join(class_dir, img_name)
                             self.image_paths.append(img_path)
@@ -155,6 +259,7 @@ class PlanktonDataset(Dataset):
                     pickle.dump({
                         'paths': self.image_paths,
                         'labels': self.labels,
+                        'cache_format_version': DATA_CACHE_FORMAT_VERSION,
                         'timestamp': datetime.now().isoformat()
                     }, f)
             else:
@@ -181,7 +286,7 @@ class PlanktonDataset(Dataset):
         return image, label
 
 
-def get_transforms(image_size=224):
+def get_transforms(image_size=320):
     """
     获取图像变换
 
@@ -306,30 +411,35 @@ def _build_loader_kwargs(batch_size, shuffle, num_workers, drop_last=False):
     return kwargs
 
 
-def _create_federated_train_subsets(data_root, n_clients=10, alpha=0.1, image_size=224, partition_seed=None):
+def _create_federated_train_subsets(data_root, n_clients=10, alpha=0.1, image_size=320, partition_seed=None):
     """Create the train split, validation split, and per-client indices once."""
     train_transform, test_transform = get_transforms(image_size)
-
-    full_train_dataset = PlanktonDataset(data_root, transform=train_transform, mode='train')
-
-    total_len = len(full_train_dataset)
-    val_len = int(total_len * 0.1)
-    train_len = total_len - val_len
-
-    train_dataset, val_dataset_raw = torch.utils.data.random_split(
-        full_train_dataset, [train_len, val_len],
-        generator=torch.Generator().manual_seed(42)
+    manifest_payload = _load_or_create_split_manifest(
+        data_root=data_root,
+        n_clients=n_clients,
+        alpha=alpha,
+        image_size=image_size,
+        partition_seed=partition_seed,
     )
 
-    val_dataset = PlanktonDataset(data_root, transform=test_transform, mode='train')
-    val_indices = val_dataset_raw.indices
-    val_dataset = torch.utils.data.Subset(val_dataset, val_indices)
+    train_indices_full = [int(idx) for idx in manifest_payload["train_indices"]]
+    val_indices_full = [int(idx) for idx in manifest_payload["val_indices"]]
 
-    client_indices = partition_data(train_dataset, n_clients, alpha, seed=partition_seed)
+    full_train_dataset = PlanktonDataset(data_root, transform=train_transform, mode='train')
+    full_train_eval_dataset = PlanktonDataset(data_root, transform=test_transform, mode='train')
+
+    train_dataset = torch.utils.data.Subset(full_train_dataset, train_indices_full)
+    val_dataset = torch.utils.data.Subset(full_train_eval_dataset, val_indices_full)
+
+    full_to_train_idx = {full_idx: rel_idx for rel_idx, full_idx in enumerate(train_indices_full)}
+    client_indices = [
+        [full_to_train_idx[int(full_idx)] for full_idx in client_full_indices]
+        for client_full_indices in manifest_payload["client_indices"]
+    ]
     return train_dataset, val_dataset, client_indices
 
 
-def create_federated_loaders(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=224, num_workers=None, partition_seed=None):
+def create_federated_loaders(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=320, num_workers=None, partition_seed=None):
     """
     创建联邦学习数据加载器
 
@@ -410,7 +520,7 @@ def create_federated_loaders(data_root, n_clients=10, alpha=0.1, batch_size=32, 
     return client_loaders, test_loader, near_ood_loader, far_ood_loader, val_loader
 
 
-def create_id_train_client_loaders_only(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=224, num_workers=None, partition_seed=None):
+def create_id_train_client_loaders_only(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=320, num_workers=None, partition_seed=None):
     """
     Create per-client ID-train loaders with test-time transforms only.
     Used for federated empirical alpha calibration without data augmentation.
@@ -447,7 +557,7 @@ def create_id_train_client_loaders_only(data_root, n_clients=10, alpha=0.1, batc
     return client_loaders
 
 
-def create_id_train_pooled_loader_only(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=224, num_workers=None, partition_seed=None):
+def create_id_train_pooled_loader_only(data_root, n_clients=10, alpha=0.1, batch_size=32, image_size=320, num_workers=None, partition_seed=None):
     """
     Create one pooled ID-train loader using the same 90% train split as federated runs.
 
@@ -482,7 +592,7 @@ def create_id_train_pooled_loader_only(data_root, n_clients=10, alpha=0.1, batch
     return pooled_loader
 
 
-def create_test_loaders_only(data_root, batch_size=32, image_size=224, num_workers=None):
+def create_test_loaders_only(data_root, batch_size=32, image_size=320, num_workers=None):
     """
     只创建测试数据加载器（不创建训练数据加载器）
     用于测试脚本，避免加载训练数据
@@ -528,7 +638,7 @@ def create_test_loaders_only(data_root, batch_size=32, image_size=224, num_worke
     return test_loader, near_ood_loader, far_ood_loader
 
 
-def create_id_train_loader_only(data_root, batch_size=32, image_size=224, num_workers=None):
+def create_id_train_loader_only(data_root, batch_size=32, image_size=320, num_workers=None):
     """
     只创建 ID 训练集 loader，默认使用无增强的 test transform。
     用于离线评估或经验 alpha 校准。
@@ -554,7 +664,7 @@ if __name__ == "__main__":
     try:
         # [修改] 接收 5 个返回值，用 _ 忽略 val_loader
         client_loaders, test_loader, near_ood_loader, far_ood_loader, _ = create_federated_loaders(
-            data_root, n_clients=3, batch_size=4, image_size=224
+            data_root, n_clients=3, batch_size=4, image_size=320
         )
 
         # 测试一个批次

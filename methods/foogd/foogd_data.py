@@ -19,6 +19,11 @@ from data_utils import (
 )
 
 
+def pil_image_to_numpy(image: Image.Image) -> np.ndarray:
+    """Module-level helper so Windows DataLoader workers can pickle the transform."""
+    return np.asarray(image)
+
+
 def colorful_spectrum_mix(img1: np.ndarray, img2: np.ndarray, alpha: float, ratio: float = 1.0):
     lam = np.random.uniform(0, alpha)
     assert img1.shape == img2.shape
@@ -65,7 +70,7 @@ class FOOGDFourierPairDataset(Dataset):
         self.pre_transform = transforms.Compose([
             transforms.Resize((image_size, image_size)),
             transforms.RandomHorizontalFlip(),
-            lambda image: np.asarray(image),
+            pil_image_to_numpy,
         ])
         self.post_transform = transforms.Compose([
             transforms.ToTensor(),

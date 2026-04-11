@@ -61,11 +61,8 @@ class ModelConfig:
     # Paper version keeps the current five-model SGD training recipe unchanged.
     USE_ADAMW_MODELS = set()
 
-    # Batch size adjustments (for memory-constrained training)
-    BATCH_SIZE_OVERRIDES = {
-        'resnet101': 16,          # Deeper model, use smaller batch
-        'mobilenetv3_large': 64,  # Lightweight, can use larger batch
-    }
+    # Official thesis rerun keeps a uniform batch size of 32 across the five backbones.
+    BATCH_SIZE_OVERRIDES = {}
 
     # Accumulation steps for effective batch size
     ACCUMULATION_STEPS = {
@@ -127,7 +124,7 @@ RECOMMENDED_CONFIGS = {
     },
     'mobilenetv3_large': {
         'base_lr': 0.001,  # SGD
-        'batch_size': 64,  # Lightweight, larger batch
+        'batch_size': 32,
         'freeze_bn': 0,
         'weight_decay': 1e-4,
         'communication_rounds': 50,
@@ -136,7 +133,7 @@ RECOMMENDED_CONFIGS = {
     },
     'resnet101': {
         'base_lr': 0.001,  # SGD
-        'batch_size': 16,  # Deeper model, smaller batch
+        'batch_size': 32,
         'accumulation_steps': 4,
         'freeze_bn': 0,
         'weight_decay': 1e-4,
