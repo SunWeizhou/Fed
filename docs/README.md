@@ -4,8 +4,9 @@
 
 ## 主文档
 
-- `docs/paper/ACT_FedViM_论文草稿.md`
+- `docs/paper/FedViM_论文草稿.md`
 - `docs/FEDVIM_ACT_GUIDE_CN.md`
+- `docs/THESIS_AGENT_HANDOVER.md`
 
 ## 当前口径
 
