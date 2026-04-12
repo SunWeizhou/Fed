@@ -51,8 +51,8 @@ def compute_empirical_alpha_local_stats(model, loader, P, mu, device=None):
     if device is None:
         device = P.device
 
-    P = P.to(device)
-    mu = mu.to(device)
+    P = P.to(device=device, dtype=torch.float64)
+    mu = mu.to(device=device, dtype=torch.float64)
 
     was_training = model.training
     model.eval()
@@ -65,6 +65,9 @@ def compute_empirical_alpha_local_stats(model, loader, P, mu, device=None):
         for images, _ in loader:
             images = images.to(device, non_blocking=True)
             logits, features = model(images)
+
+            logits = logits.to(dtype=torch.float64)
+            features = features.to(dtype=torch.float64)
 
             energy = torch.logsumexp(logits, dim=1)
             centered = features - mu
@@ -141,11 +144,11 @@ def estimate_vim_alpha_from_statistics(P, cov_global, global_model=None, mu_glob
     if device is None:
         device = P.device
 
-    P = P.to(device)
-    cov_global = cov_global.to(device)
+    P = P.to(device=device, dtype=torch.float64)
+    cov_global = cov_global.to(device=device, dtype=torch.float64)
     D = P.shape[0]
 
-    identity = torch.eye(D, device=device)
+    identity = torch.eye(D, device=device, dtype=torch.float64)
     projector_residual = identity - P @ P.T
     expected_residual_sq = torch.trace(projector_residual @ cov_global @ projector_residual.T)
     mean_residual = torch.sqrt(torch.clamp(expected_residual_sq, min=0)).item()
@@ -162,13 +165,13 @@ def estimate_vim_alpha_from_statistics(P, cov_global, global_model=None, mu_glob
             else:
                 raise ValueError("Cannot find classifier head in global_model")
 
-            mu_global = mu_global.to(device)
+            mu_global = mu_global.to(device=device, dtype=torch.float64)
 
             if isinstance(classifier, nn.Linear):
                 logits_mu = F.linear(
                     mu_global,
-                    classifier.weight.to(device),
-                    classifier.bias.to(device) if classifier.bias is not None else None,
+                    classifier.weight.to(device=device, dtype=torch.float64),
+                    classifier.bias.to(device=device, dtype=torch.float64) if classifier.bias is not None else None,
                 )
             elif isinstance(classifier, nn.Sequential):
                 hidden = mu_global

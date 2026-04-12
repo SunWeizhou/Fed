@@ -35,6 +35,7 @@ def select_vim_paper_k(feature_dim: int, num_classes: int) -> int:
 def covariance_to_correlation(cov_matrix: torch.Tensor) -> torch.Tensor:
     """Convert a covariance matrix into a numerically stable correlation matrix."""
     device = cov_matrix.device
+    dtype = cov_matrix.dtype
     diag = torch.clamp(torch.diag(cov_matrix), min=1e-6)
     std = torch.sqrt(diag)
     outer_std = torch.outer(std, std)
@@ -42,7 +43,7 @@ def covariance_to_correlation(cov_matrix: torch.Tensor) -> torch.Tensor:
     corr_matrix = cov_matrix / (outer_std + 1e-8)
     corr_matrix = torch.nan_to_num(corr_matrix, nan=0.0, posinf=0.0, neginf=0.0)
     corr_matrix = (corr_matrix + corr_matrix.T) / 2
-    corr_matrix = corr_matrix + torch.eye(corr_matrix.shape[0], device=device) * (1.0 - torch.diag(corr_matrix))
+    corr_matrix = corr_matrix + torch.eye(corr_matrix.shape[0], device=device, dtype=dtype) * (1.0 - torch.diag(corr_matrix))
     return corr_matrix
 
 
@@ -52,13 +53,14 @@ def compute_act_k_from_covariance(cov_global: torch.Tensor, n_samples: int) -> t
         raise ValueError("ACT requires at least two samples.")
 
     device = cov_global.device
+    dtype = cov_global.dtype
     p = cov_global.shape[0]
     corr = covariance_to_correlation(cov_global)
 
     eig_vals = None
     for jitter in (1e-5, 1e-4, 1e-3, 1e-2, 5e-2):
         try:
-            corr_jittered = corr + torch.eye(p, device=device) * jitter
+            corr_jittered = corr + torch.eye(p, device=device, dtype=dtype) * jitter
             eig_vals, _ = torch.linalg.eigh(corr_jittered)
             if torch.any(torch.isnan(eig_vals)) or torch.any(torch.isinf(eig_vals)):
                 raise ValueError("NaN/Inf in eigenvalues")

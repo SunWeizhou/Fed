@@ -1,0 +1,150 @@
+# FedViM
+
+**论文题目**：`FedViM：面向海洋浮游生物多中心监测的联邦分布外检测方法研究`
+
+本仓库当前只维护本科论文主线：
+
+- `FedViM`：联邦化 ViM，采用原版 ViM fixed-k 口径
+- `ACT-FedViM`：在同一 `FedViM` checkpoint 上用 ACT 自动选择主子空间维度 `k`
+- `MSP`
+- `Energy`
+
+研究背景固定为海洋浮游生物多中心监测。各客户端对应不同数据中心，原始图像及其采样相关敏感信息不直接共享；服务器只聚合一阶与二阶特征统计量。
+
+## 当前实验范围
+
+论文主实验只保留 5 个 CNN 家族 backbone：
+
+- `resnet101`
+- `efficientnet_v2_s`
+- `mobilenetv3_large`
+- `densenet169`
+- `resnet50`
+
+`ViT`、`DeiT`、`convnext_base` 和其他探索方法不再进入论文主结果。
+
+## 安装
+
+```bash
+pip install -r requirements.txt
+```
+
+## 主流程
+
+### 1. 训练 FedViM
+
+```bash
+python3 train_federated.py \
+  --model_type resnet101 \
+  --use_fedvim \
+  --data_root ./Plankton_OOD_Dataset
+```
+
+训练脚本现在只负责：
+
+- 联邦训练 backbone
+- 保存 `best_model.pth` / `final_model.pth`
+- 保存 `training_history.json`
+
+训练阶段不再直接运行 OOD 评估。
+
+### 2. 评估 FedViM
+
+```bash
+python3 evaluate_fedvim.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset
+```
+
+### 3. 评估 ACT-FedViM
+
+```bash
+python3 advanced_fedvim.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset
+```
+
+### 4. 评估 pooled ViM / pooled ACT-ViM
+
+用于和 `FedViM` / `ACT-FedViM` 做“联邦统计量聚合是否改变 ViM 本身”的对照。
+
+```bash
+python3 evaluate_pooled_vim.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset
+
+python3 evaluate_pooled_act_vim.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset
+```
+
+### 5. 评估 MSP / Energy
+
+```bash
+python3 evaluate_baselines.py \
+  --checkpoint ./experiments/experiments_rerun_v1/resnet101/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset \
+  --methods msp energy
+```
+
+四种方法都会输出结构化 JSON，供论文汇总脚本直接读取。
+
+## 五模型结果汇总
+
+```bash
+python3 paper_tools/collect_paper_results.py \
+  --experiments-root experiments/experiments_rerun_v1 \
+  --output-prefix paper_tools/rerun_v1_results
+
+python3 paper_tools/generate_paper_tables.py
+```
+
+生成物包括：
+
+- 五模型完整对比表
+- 正文 2 到 3 个代表模型表
+- 方法平均表现表
+- 论文摘要口径 markdown
+
+## 目录说明
+
+- `train_federated.py`：纯训练入口
+- `evaluate_fedvim.py`：`FedViM` fixed-k 评估
+- `advanced_fedvim.py`：`ACT-FedViM` 评估
+- `evaluate_pooled_vim.py`：`Pooled-ViM` 评估
+- `evaluate_pooled_act_vim.py`：`Pooled-ACT-ViM` 评估
+- `evaluate_baselines.py`：`MSP` / `Energy`
+- `run_fedvim_model_pipeline.sh`：单模型训练+评估流水线
+- `paper_tools/collect_paper_results.py`：五模型结果收集
+- `paper_tools/generate_paper_tables.py`：markdown 表格生成
+- `docs/paper/ACT_FedViM_论文草稿.md`：当前论文草稿
+- `experiments/experiments_rerun_v1/`：实验输出
+
+## 说明
+
+- 非论文主线的旧方法、旧实验、机器专用脚本和 handover 文档已移到本地 `archive/`。
+- `archive/` 已加入 `.gitignore`，整理工作区或上传 GitHub 时不会一起提交。
+- 当前正式论文口径是 `FedViM + empirical alpha`，`ACT-FedViM` 作为后处理自适应选维扩展。
+
+## FOSTER Baseline
+
+`FOSTER` 在本仓库中作为独立的补充 baseline 保留，不属于当前 `FedViM` 主训练/评估流水线。
+
+- 独立训练入口：`train_foster.py`
+- 独立评估入口：`evaluate_foster.py`
+- 独立结果汇总：`paper_tools/collect_foster_results.py`
+- 说明文档：`docs/foster_baseline_notes.md`
+
+示例命令：
+
+```bash
+python3 train_foster.py \
+  --model_type resnet50 \
+  --data_root ./Plankton_OOD_Dataset \
+  --device cuda:0
+
+python3 evaluate_foster.py \
+  --checkpoint ./experiments/foster_v1/resnet50/experiment_xxx/best_model.pth \
+  --data_root ./Plankton_OOD_Dataset \
+  --evaluation_score msp
+```

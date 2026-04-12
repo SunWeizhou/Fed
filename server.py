@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from utils.ood_utils import compute_ood_metrics, compute_vim_scores
+from utils.ood_utils import compute_ood_metrics
 
 
 class FLServer:
@@ -71,12 +71,14 @@ class FLServer:
             return {"P": None, "mu": None}
 
         feature_dim = client_stats_list[0]["sum_z"].shape[0]
-        global_sum_z = torch.zeros(feature_dim, device=self.device)
-        global_sum_zzT = torch.zeros(feature_dim, feature_dim, device=self.device)
+        stats_device = torch.device("cpu")
+        stats_dtype = torch.float64
+        global_sum_z = torch.zeros(feature_dim, device=stats_device, dtype=stats_dtype)
+        global_sum_zzT = torch.zeros(feature_dim, feature_dim, device=stats_device, dtype=stats_dtype)
 
         for stats in client_stats_list:
-            global_sum_z += stats["sum_z"]
-            global_sum_zzT += stats["sum_zzT"]
+            global_sum_z += stats["sum_z"].to(device=stats_device, dtype=stats_dtype)
+            global_sum_zzT += stats["sum_zzT"].to(device=stats_device, dtype=stats_dtype)
 
         self.global_sum_z = global_sum_z
         self.global_sum_zzT = global_sum_zzT
@@ -85,7 +87,8 @@ class FLServer:
         self.mu_global = global_sum_z / total_count
         e_zzt = global_sum_zzT / total_count
         cov_global = e_zzt - torch.outer(self.mu_global, self.mu_global)
-        cov_global += torch.eye(feature_dim, device=self.device) * 1e-6
+        cov_global = (cov_global + cov_global.T) / 2
+        cov_global += torch.eye(feature_dim, device=stats_device, dtype=stats_dtype) * 1e-6
 
         try:
             eig_vals, eig_vecs = torch.linalg.eigh(cov_global)
@@ -122,8 +125,8 @@ class FLServer:
         all_energy = []
         all_residuals = []
 
-        P = vim_stats["P"]
-        mu = vim_stats["mu"]
+        P = vim_stats["P"].to(device=self.device, dtype=torch.float64)
+        mu = vim_stats["mu"].to(device=self.device, dtype=torch.float64)
 
         with torch.no_grad():
             for data, _ in data_loader:
@@ -133,6 +136,9 @@ class FLServer:
                     logits, features = model_output
                 else:
                     logits, _, features = model_output
+
+                logits = logits.to(dtype=torch.float64)
+                features = features.to(dtype=torch.float64)
 
                 energy = torch.logsumexp(logits, dim=1)
                 all_energy.append(energy.cpu())
@@ -161,6 +167,12 @@ class FLServer:
         all_targets = []
         all_scores = []
 
+        P = None
+        mu = None
+        if vim_stats is not None and vim_stats.get("P") is not None:
+            P = vim_stats["P"].to(device=self.device, dtype=torch.float64)
+            mu = vim_stats["mu"].to(device=self.device, dtype=torch.float64)
+
         with torch.no_grad():
             for data, targets in data_loader:
                 data, targets = data.to(self.device), targets.to(self.device)
@@ -184,20 +196,16 @@ class FLServer:
                     all_preds.extend(preds.cpu().numpy())
                     all_targets.extend(valid_targets.cpu().numpy())
 
-                if vim_stats is not None and vim_stats["P"] is not None:
-                    P = vim_stats["P"]
-                    mu = vim_stats["mu"]
+                if P is not None:
+                    logits_g = logits_g.to(dtype=torch.float64)
+                    features = features.to(dtype=torch.float64)
+
                     z_centered = features - mu
                     z_proj = torch.matmul(z_centered, P)
                     z_recon = torch.matmul(z_proj, P.T)
                     residual = torch.norm(z_centered - z_recon, p=2, dim=1)
                     energy = torch.logsumexp(logits_g, dim=1)
-                    scores = compute_vim_scores(
-                        energy.cpu().numpy(),
-                        residual.cpu().numpy(),
-                        alpha,
-                    )
-                    scores = torch.from_numpy(scores).to(features.device)
+                    scores = energy - float(alpha) * residual
                 else:
                     scores = torch.norm(features, dim=1)
 

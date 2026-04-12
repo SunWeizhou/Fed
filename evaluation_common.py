@@ -97,11 +97,12 @@ def reconstruct_covariance_from_vim_stats(vim_stats: dict[str, Any], device: tor
             f"evaluation: {', '.join(missing)}"
         )
 
-    mu = vim_stats["mu"].to(device)
-    sum_zzT = vim_stats["sum_zzT"].to(device)
+    mu = vim_stats["mu"].to(device=device, dtype=torch.float64)
+    sum_zzT = vim_stats["sum_zzT"].to(device=device, dtype=torch.float64)
     total_count = int(vim_stats["count"])
     cov = sum_zzT / total_count - torch.outer(mu, mu)
-    cov = cov + torch.eye(cov.shape[0], device=device) * 1e-6
+    cov = (cov + cov.T) / 2
+    cov = cov + torch.eye(cov.shape[0], device=device, dtype=torch.float64) * 1e-6
     return mu, cov, total_count
 
 
@@ -167,8 +168,10 @@ def compute_loader_feature_statistics(model, loader, device: torch.device) -> di
         raise ValueError("Model does not expose backbone.feature_dim required for ViM statistics.")
 
     feature_dim = int(model.backbone.feature_dim)
-    sum_z = torch.zeros(feature_dim, device=device)
-    sum_zzT = torch.zeros(feature_dim, feature_dim, device=device)
+    # Accumulate statistics in float64 to reduce order-sensitive rounding drift.
+    stats_device = torch.device("cpu")
+    sum_z = torch.zeros(feature_dim, device=stats_device, dtype=torch.float64)
+    sum_zzT = torch.zeros(feature_dim, feature_dim, device=stats_device, dtype=torch.float64)
     total_count = 0
 
     was_training = model.training
@@ -178,6 +181,7 @@ def compute_loader_feature_statistics(model, loader, device: torch.device) -> di
         for images, _ in loader:
             images = images.to(device, non_blocking=True)
             _, features = model(images)
+            features = features.to(dtype=torch.float64, device=stats_device)
             sum_z += features.sum(dim=0)
             sum_zzT += torch.matmul(features.T, features)
             total_count += images.size(0)
@@ -190,7 +194,8 @@ def compute_loader_feature_statistics(model, loader, device: torch.device) -> di
 
     mu = sum_z / total_count
     cov = sum_zzT / total_count - torch.outer(mu, mu)
-    cov = cov + torch.eye(feature_dim, device=device) * 1e-6
+    cov = (cov + cov.T) / 2
+    cov = cov + torch.eye(feature_dim, device=stats_device, dtype=torch.float64) * 1e-6
 
     return {
         "mu": mu,
@@ -224,7 +229,8 @@ def aggregate_feature_statistics_from_loaders(model, loaders, device: torch.devi
 
     mu = total_sum_z / total_count
     cov = total_sum_zzT / total_count - torch.outer(mu, mu)
-    cov = cov + torch.eye(cov.shape[0], device=device) * 1e-6
+    cov = (cov + cov.T) / 2
+    cov = cov + torch.eye(cov.shape[0], device=mu.device, dtype=torch.float64) * 1e-6
 
     return {
         "mu": mu,

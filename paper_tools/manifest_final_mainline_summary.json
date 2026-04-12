@@ -28,8 +28,8 @@
     "FedViM": {
       "method": "FedViM",
       "id_accuracy": 0.955631167063627,
-      "near_auroc": 0.9251541681741586,
-      "far_auroc": 0.9387541430414833,
+      "near_auroc": 0.9412461025908513,
+      "far_auroc": 0.9439242200875056,
       "fixed_k": 804.8,
       "act_k": null,
       "compression_rate": null
@@ -37,8 +37,8 @@
     "ACT-FedViM": {
       "method": "ACT-FedViM",
       "id_accuracy": 0.955631167063627,
-      "near_auroc": 0.9636589545920973,
-      "far_auroc": 0.9659891718380204,
+      "near_auroc": 0.9636589097039989,
+      "far_auroc": 0.9659891818272102,
       "fixed_k": 804.8,
       "act_k": 103,
       "compression_rate": 0.867453125
@@ -63,8 +63,8 @@
     }
   },
   "act_vs_fedvim": {
-    "avg_near_delta": 0.03850478641793866,
-    "avg_far_delta": 0.027235028796536963,
+    "avg_near_delta": 0.022412807113147682,
+    "avg_far_delta": 0.02206496173970456,
     "avg_fixed_k": 804.8,
     "avg_act_k": 103,
     "avg_compression_rate": 0.867453125
