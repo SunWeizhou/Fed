@@ -1,0 +1,81 @@
+{
+  "rows": [
+    {
+      "model_name": "mobilenetv3_large",
+      "fedvim_near_auroc": 0.9657324256361317,
+      "fedvim_far_auroc": 0.9694753431731249,
+      "act_near_auroc": 0.9617968616037081,
+      "act_far_auroc": 0.969711777308832,
+      "msp_near_auroc": 0.9049218453317723,
+      "msp_far_auroc": 0.8877354504502317,
+      "foster_near_auroc": 0.8706604430814423,
+      "foster_far_auroc": 0.7985873047905018,
+      "fedln_near_auroc": 0.9200692219366341,
+      "fedln_far_auroc": 0.881444718154907
+    },
+    {
+      "model_name": "resnet50",
+      "fedvim_near_auroc": 0.9600332082152402,
+      "fedvim_far_auroc": 0.9585406464831888,
+      "act_near_auroc": 0.9643572787398295,
+      "act_far_auroc": 0.959054630260225,
+      "msp_near_auroc": 0.8730822682135704,
+      "msp_far_auroc": 0.7831718371013257,
+      "foster_near_auroc": 0.8943666334195485,
+      "foster_far_auroc": 0.79537005643233,
+      "fedln_near_auroc": 0.9088753646035798,
+      "fedln_far_auroc": 0.8310625407396623
+    },
+    {
+      "model_name": "resnet101",
+      "fedvim_near_auroc": 0.9700867956271809,
+      "fedvim_far_auroc": 0.9627263368128278,
+      "act_near_auroc": 0.9718888283398316,
+      "act_far_auroc": 0.9644494321135554,
+      "msp_near_auroc": 0.8214201068157192,
+      "msp_far_auroc": 0.7969107591147013,
+      "foster_near_auroc": 0.8827857284575282,
+      "foster_far_auroc": 0.8032845115672722,
+      "fedln_near_auroc": 0.9071464994914178,
+      "fedln_far_auroc": 0.8351113192325529
+    },
+    {
+      "model_name": "densenet169",
+      "fedvim_near_auroc": 0.7680607264151198,
+      "fedvim_far_auroc": 0.833877464485483,
+      "act_near_auroc": 0.9630149001554025,
+      "act_far_auroc": 0.9717073377532301,
+      "msp_near_auroc": 0.8326780419093242,
+      "msp_far_auroc": 0.7938637065740197,
+      "foster_near_auroc": 0.8311984179638578,
+      "foster_far_auroc": 0.7722208480426651,
+      "fedln_near_auroc": 0.9328016188443828,
+      "fedln_far_auroc": 0.9052388386336075
+    },
+    {
+      "model_name": "efficientnet_v2_s",
+      "fedvim_near_auroc": 0.9618576849771207,
+      "fedvim_far_auroc": 0.9691509242527921,
+      "act_near_auroc": 0.9572369041217149,
+      "act_far_auroc": 0.9650226817542591,
+      "msp_near_auroc": 0.8763839000755018,
+      "msp_far_auroc": 0.8648078921952241,
+      "foster_near_auroc": 0.7634065039263619,
+      "foster_far_auroc": 0.7204628994594631,
+      "fedln_near_auroc": 0.9372123233989986,
+      "fedln_far_auroc": 0.9161539365329627
+    }
+  ],
+  "averages": {
+    "fedvim_near_auroc": 0.9251541681741586,
+    "fedvim_far_auroc": 0.9387541430414833,
+    "act_near_auroc": 0.9636589545920973,
+    "act_far_auroc": 0.9659891718380204,
+    "msp_near_auroc": 0.8616972324691776,
+    "msp_far_auroc": 0.8252979290871005,
+    "foster_near_auroc": 0.8484835453697478,
+    "foster_far_auroc": 0.7779851240584464,
+    "fedln_near_auroc": 0.9212210056550026,
+    "fedln_far_auroc": 0.8738022706587385
+  }
+}

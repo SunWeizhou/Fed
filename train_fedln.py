@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--output_dir", type=str, default="experiments/fedln_v1")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--num_workers", type=int, default=None)
+    parser.add_argument("--num_workers", type=int, default=TrainingConfig.DEFAULT_NUM_WORKERS)
     parser.add_argument("--temperature", type=float, default=0.01)
     parser.add_argument("--freeze_bn", action="store_true")
     return parser.parse_args()
@@ -57,7 +57,7 @@ def main() -> None:
     device = torch.device(args.device) if args.device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cfg = get_model_config(args.model_type)
     if args.num_workers is None:
-        args.num_workers = get_recommended_num_workers()
+        args.num_workers = get_recommended_num_workers(max_workers=TrainingConfig.DEFAULT_NUM_WORKERS)
 
     experiment_dir = setup_experiment_dir(args.output_dir, args.model_type)
     config_payload = {

@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--output_dir", type=str, default="experiments/foster_v1")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--num_workers", type=int, default=None)
+    parser.add_argument("--num_workers", type=int, default=TrainingConfig.DEFAULT_NUM_WORKERS)
     parser.add_argument("--generator_lr", type=float, default=defaults["generator_lr"])
     parser.add_argument("--loss_weight", type=float, default=defaults["loss_weight"])
     parser.add_argument("--warmup_rounds", type=int, default=defaults["warmup_rounds"])
@@ -68,7 +68,7 @@ def main() -> None:
     if args.batch_size is None:
         args.batch_size = TrainingConfig.DEFAULT_BATCH_SIZE
     if args.num_workers is None:
-        args.num_workers = get_recommended_num_workers()
+        args.num_workers = get_recommended_num_workers(max_workers=TrainingConfig.DEFAULT_NUM_WORKERS)
 
     experiment_dir = setup_experiment_dir(args.output_dir, args.model_type)
     config_payload = {

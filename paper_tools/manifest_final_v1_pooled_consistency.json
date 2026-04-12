@@ -1,0 +1,85 @@
+{
+  "rows": [
+    {
+      "model_name": "mobilenetv3_large",
+      "fedvim_near_auroc": 0.9657324256361317,
+      "pooled_vim_near_auroc": 0.9657324256361317,
+      "delta_vim_near": 0.0,
+      "fedvim_far_auroc": 0.9694753431731249,
+      "pooled_vim_far_auroc": 0.9694753731406947,
+      "delta_vim_far": 2.996756975903736e-08,
+      "act_near_auroc": 0.9617968616037081,
+      "pooled_act_near_auroc": 0.9617970860442003,
+      "delta_act_near": 2.2444049219139117e-07,
+      "act_far_auroc": 0.969711777308832,
+      "pooled_act_far_auroc": 0.9697118072764016,
+      "delta_act_far": 2.996756964801506e-08
+    },
+    {
+      "model_name": "resnet50",
+      "fedvim_near_auroc": 0.9600332082152402,
+      "pooled_vim_near_auroc": 0.9600318615722865,
+      "delta_vim_near": -1.3466429537034585e-06,
+      "fedvim_far_auroc": 0.9585406464831888,
+      "pooled_vim_far_auroc": 0.9585405166237201,
+      "delta_vim_far": -1.2985946873378396e-07,
+      "act_near_auroc": 0.9643572787398295,
+      "pooled_act_near_auroc": 0.9643579520613064,
+      "delta_act_near": 6.733214769072404e-07,
+      "act_far_auroc": 0.959054630260225,
+      "pooled_act_far_auroc": 0.9590547101737441,
+      "delta_act_far": 7.991351913538836e-08
+    },
+    {
+      "model_name": "resnet101",
+      "fedvim_near_auroc": 0.9700867956271809,
+      "pooled_vim_near_auroc": 0.9700865711866886,
+      "delta_vim_near": -2.2444049230241347e-07,
+      "fedvim_far_auroc": 0.9627263368128278,
+      "pooled_vim_far_auroc": 0.9627252779586987,
+      "delta_vim_far": -1.0588541291545184e-06,
+      "act_near_auroc": 0.9718888283398316,
+      "pooled_act_near_auroc": 0.9718888283398318,
+      "delta_act_near": 2.220446049250313e-16,
+      "act_far_auroc": 0.9644494321135554,
+      "pooled_act_far_auroc": 0.964449751767632,
+      "delta_act_far": 3.196540766525757e-07
+    },
+    {
+      "model_name": "densenet169",
+      "fedvim_near_auroc": 0.7680607264151198,
+      "pooled_vim_near_auroc": 0.7730327566409697,
+      "delta_vim_near": 0.0049720302258499105,
+      "fedvim_far_auroc": 0.833877464485483,
+      "pooled_vim_far_auroc": 0.8313545946847241,
+      "delta_vim_far": -0.002522869800758998,
+      "act_near_auroc": 0.9630149001554025,
+      "pooled_act_near_auroc": 0.9630151245958949,
+      "delta_act_near": 2.2444049241343578e-07,
+      "act_far_auroc": 0.9717073377532301,
+      "pooled_act_far_auroc": 0.9717074376451291,
+      "delta_act_far": 9.98918989747466e-08
+    },
+    {
+      "model_name": "efficientnet_v2_s",
+      "fedvim_near_auroc": 0.9618576849771207,
+      "pooled_vim_near_auroc": 0.9618574605366284,
+      "delta_vim_near": -2.2444049230241347e-07,
+      "fedvim_far_auroc": 0.9691509242527921,
+      "pooled_vim_far_auroc": 0.9691509542203618,
+      "delta_vim_far": 2.996756964801506e-08,
+      "act_near_auroc": 0.9572369041217149,
+      "pooled_act_near_auroc": 0.957236904121715,
+      "delta_act_near": 1.1102230246251565e-16,
+      "act_far_auroc": 0.9650226817542591,
+      "pooled_act_far_auroc": 0.9650226717650693,
+      "delta_act_far": -9.989189808656818e-09
+    }
+  ],
+  "averages": {
+    "delta_vim_near": 0.0009940469403823204,
+    "delta_vim_far": -0.0005047997158434958,
+    "delta_act_near": 2.2444049236902685e-07,
+    "delta_act_far": 1.0388757492041378e-07
+  }
+}

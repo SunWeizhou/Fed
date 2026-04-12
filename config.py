@@ -35,6 +35,7 @@ class TrainingConfig:
     DEFAULT_COMMUNICATION_ROUNDS = 50
     DEFAULT_LOCAL_EPOCHS = 4
     DEFAULT_BATCH_SIZE = 32
+    DEFAULT_NUM_WORKERS = 8
 
 
 class ModelConfig:
@@ -64,10 +65,8 @@ class ModelConfig:
     # Official thesis rerun keeps a uniform batch size of 32 across the five backbones.
     BATCH_SIZE_OVERRIDES = {}
 
-    # Accumulation steps for effective batch size
-    ACCUMULATION_STEPS = {
-        'resnet101': 4,
-    }
+    # Official thesis rerun does not use gradient accumulation.
+    ACCUMULATION_STEPS = {}
 
 
 class ViMConfig:
@@ -134,7 +133,6 @@ RECOMMENDED_CONFIGS = {
     'resnet101': {
         'base_lr': 0.001,  # SGD
         'batch_size': 32,
-        'accumulation_steps': 4,
         'freeze_bn': 0,
         'weight_decay': 1e-4,
         'communication_rounds': 50,

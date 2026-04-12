@@ -9,6 +9,7 @@
 
 import os
 import json
+import tempfile
 import numpy as np
 import torch
 import pickle
@@ -88,9 +89,22 @@ def _build_client_class_distribution(client_indices_full, labels):
 
 
 def _save_split_manifest(manifest_path, manifest_payload):
-    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        json.dump(manifest_payload, f, ensure_ascii=False, indent=2)
+    manifest_dir = os.path.dirname(manifest_path)
+    os.makedirs(manifest_dir, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(
+        prefix=os.path.basename(manifest_path) + ".tmp.",
+        suffix=".json",
+        dir=manifest_dir,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(manifest_payload, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, manifest_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 def _generate_split_manifest(data_root, n_clients, alpha, image_size, partition_seed, manifest_path):
@@ -138,17 +152,20 @@ def _generate_split_manifest(data_root, n_clients, alpha, image_size, partition_
 def _load_or_create_split_manifest(data_root, n_clients, alpha, image_size, partition_seed):
     manifest_path = _default_split_manifest_path(n_clients=n_clients, alpha=alpha, partition_seed=partition_seed)
     if os.path.exists(manifest_path):
-        with open(manifest_path, "r", encoding="utf-8") as f:
-            manifest_payload = json.load(f)
-        if (
-            manifest_payload.get("manifest_version") == SPLIT_MANIFEST_VERSION
-            and int(manifest_payload.get("n_clients", -1)) == int(n_clients)
-            and float(manifest_payload.get("alpha", -1.0)) == float(alpha)
-            and manifest_payload.get("partition_seed") == (None if partition_seed is None else int(partition_seed))
-        ):
-            print(f"[split] 使用固定分片文件: {manifest_path}")
-            return manifest_payload
-        print(f"[split] 分片文件版本或配置不匹配，重新生成: {manifest_path}")
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest_payload = json.load(f)
+            if (
+                manifest_payload.get("manifest_version") == SPLIT_MANIFEST_VERSION
+                and int(manifest_payload.get("n_clients", -1)) == int(n_clients)
+                and float(manifest_payload.get("alpha", -1.0)) == float(alpha)
+                and manifest_payload.get("partition_seed") == (None if partition_seed is None else int(partition_seed))
+            ):
+                print(f"[split] 使用固定分片文件: {manifest_path}")
+                return manifest_payload
+            print(f"[split] 分片文件版本或配置不匹配，重新生成: {manifest_path}")
+        except (json.JSONDecodeError, OSError, ValueError) as exc:
+            print(f"[split] 分片文件损坏或读取失败，重新生成: {manifest_path} ({exc})")
     return _generate_split_manifest(
         data_root=data_root,
         n_clients=n_clients,
@@ -388,9 +405,9 @@ def partition_data(dataset, n_clients=10, alpha=0.1, seed=None):
 
 
 def get_recommended_num_workers(max_workers=8):
-    """基于 CPU 核心数给出保守的 DataLoader worker 建议值。"""
-    cpu_count = os.cpu_count() or 4
-    return max(1, min(max_workers, max(1, cpu_count // 4)))
+    """返回论文正式协议使用的 DataLoader worker 数。"""
+    cpu_count = os.cpu_count() or max_workers
+    return max(1, min(max_workers, cpu_count))
 
 
 def _build_loader_kwargs(batch_size, shuffle, num_workers, drop_last=False):

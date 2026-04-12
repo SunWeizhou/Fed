@@ -533,8 +533,8 @@ def main():
                        help='梯度累积步数（默认根据模型自动设置）')
     parser.add_argument('--warmup_rounds', type=int, default=None,
                        help='学习率预热轮数（默认根据模型自动设置）')
-    parser.add_argument('--num_workers', type=int, default=None,
-                       help='DataLoader worker 数。默认根据 CPU 核心数自动设置。')
+    parser.add_argument('--num_workers', type=int, default=TrainingConfig.DEFAULT_NUM_WORKERS,
+                       help='DataLoader worker 数。默认使用论文正式设定。')
 
     args = parser.parse_args()
     args.split_manifest = get_split_manifest_path(args.n_clients, args.alpha, args.seed)
@@ -556,8 +556,8 @@ def main():
             print(f"[自动配置] accumulation_steps 设置为 {args.accumulation_steps} (基于模型 {args.model_type})")
 
     if args.num_workers is None:
-        args.num_workers = get_recommended_num_workers()
-        print(f"[自动配置] num_workers 设置为 {args.num_workers} (基于 CPU 核心数)")
+        args.num_workers = get_recommended_num_workers(max_workers=TrainingConfig.DEFAULT_NUM_WORKERS)
+        print(f"[自动配置] num_workers 设置为 {args.num_workers} (论文正式设定)")
 
     if args.warmup_rounds is None:
         args.warmup_rounds = model_config.get('warmup_rounds', TrainingConfig.WARMUP_ROUNDS)
